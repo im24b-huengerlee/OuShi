@@ -276,6 +276,7 @@ tr.you td{background:var(--tint);font-weight:600}
 <canvas id="celeCanvas"></canvas>
 <div id="celeEmojiLayer" class="cele-emoji-layer"></div>
 </div>
+<audio id="winTrack" preload="auto" src="/assets/animals.mp3"></audio>
 <script>
 const STR={
 de:{kicker:'Wort-Bombe mit Sabotage',nameLbl:'Name',namePh:'Dein Name',create:'Raum erstellen',or:'ODER',codePh:'CODE',join:'Beitreten',
@@ -315,7 +316,7 @@ let players=[],myTurn=false,lastType=0,effects=[],liveTyping=new Map(),lastWords
 const DUCK_IMGS=['/assets/duck-a.png','/assets/duck-b.png','/assets/duck.png'];
 const SCREEN_DUCK_N=26;
 const CELE_EMOJIS=['🎉','🎊','💥','🔥','💦','📣','🦆','✨','🌊','🎆','💣','🚨','⭐','🥳','🌈','🎺','🍾','⚡','🌪️','💫'];
-let audioCtx=null,celeRaf=null,celeParticles=[],celeSoundTimer=null,celeEmojiTimer=null,celeEnd=0;
+let celeRaf=null,celeParticles=[],celeBurstTimer=null,celeEmojiTimer=null,celeEnd=0;
 const $=id=>document.getElementById(id);
 function show(sc){document.body.className=sc;['home','lobby','game','over'].forEach(s=>$(s).classList.toggle('on',s===sc));state=sc;
  if(sc==='game')initScreenDucks();else stopScreenDucks();}
@@ -360,38 +361,18 @@ async function loadHof(){try{renderHof(await(await fetch('/api/highscores')).jso
 function heartsHtml(n,max){let s='';for(let i=0;i<max;i++)s+=i<n?'❤️':'🖤';return s;}
 function playerAngle(i,n){if(n===2)return i===0?180:0;return-90+(360/n)*i;}
 function arenaRadius(){const a=$('arena');return Math.min(a.clientWidth,a.clientHeight)*0.44;}
-function ensureAudio(){
-  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  if(audioCtx.state==='suspended')audioCtx.resume().catch(()=>{});
-  return audioCtx;
+function playWinTrack(){
+  const a=$('winTrack');
+  if(!a)return;
+  a.currentTime=0;
+  a.play().catch(()=>{});
 }
-function sfxNoise(dur,vol,lp){
-  const ctx=ensureAudio(),t=ctx.currentTime,n=Math.max(1,Math.floor(ctx.sampleRate*dur));
-  const b=ctx.createBuffer(1,n,ctx.sampleRate),d=b.getChannelData(0);
-  for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,1.6);
-  const s=ctx.createBufferSource();s.buffer=b;
-  const g=ctx.createGain();g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-  const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=lp;
-  s.connect(f);f.connect(g);g.connect(ctx.destination);s.start(t);s.stop(t+dur+0.05);
+function stopWinTrack(){
+  const a=$('winTrack');
+  if(!a)return;
+  a.pause();
+  a.currentTime=0;
 }
-function sfxBomb(){
-  const ctx=ensureAudio(),t=ctx.currentTime;
-  sfxNoise(0.38,0.85,650);
-  const o=ctx.createOscillator();o.type='sine';
-  o.frequency.setValueAtTime(110,t);o.frequency.exponentialRampToValueAtTime(28,t+0.32);
-  const g=ctx.createGain();g.gain.setValueAtTime(0.55,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.34);
-  o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+0.36);
-}
-function sfxAirhorn(){
-  const ctx=ensureAudio(),t=ctx.currentTime;
-  const o=ctx.createOscillator();o.type='sawtooth';
-  o.frequency.setValueAtTime(210,t);o.frequency.linearRampToValueAtTime(295,t+0.12);o.frequency.setValueAtTime(295,t+0.55);
-  const g=ctx.createGain();g.gain.setValueAtTime(0.001,t);g.gain.linearRampToValueAtTime(0.32,t+0.06);
-  g.gain.setValueAtTime(0.32,t+0.55);g.gain.exponentialRampToValueAtTime(0.001,t+0.95);
-  o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+1);
-}
-function sfxSplash(){sfxNoise(0.28,0.45,2400);}
-function sfxPop(){sfxNoise(0.07,0.28,3200);}
 function stopScreenDucks(){
   const b=$('screenDucks');if(b){b.innerHTML='';b.classList.remove('on');}
 }
@@ -426,7 +407,6 @@ function explodeScreenDuck(d){
   if(!d||d.classList.contains('exploding'))return;
   const r=d.getBoundingClientRect();
   d.classList.add('exploding');
-  sfxBomb();
   const flash=document.createElement('div');
   flash.className='duck-boom-flash';
   const sz=Math.max(r.width*2.6,96);
@@ -473,13 +453,9 @@ function spawnCelebrationEmoji(){
     setTimeout(()=>el.remove(),900+Math.random()*900);
   }
 }
-function fireRandomCelebrationSound(){
-  const r=Math.random();
-  if(r<0.22)sfxAirhorn();
-  else if(r<0.48)sfxBomb();
-  else if(r<0.68)sfxSplash();
-  else sfxPop();
-  if(Math.random()<0.45)spawnCelebrationBurst(18+Math.floor(Math.random()*24));
+function celebrationBurst(){
+  spawnCelebrationBurst(12+Math.floor(Math.random()*22));
+  if(Math.random()<0.35)spawnCelebrationEmoji();
 }
 function tickCelebration(){
   const c=$('celeCanvas');
@@ -501,7 +477,8 @@ function tickCelebration(){
 }
 function stopCelebration(){
   $('celebration').classList.remove('on');
-  if(celeSoundTimer){clearInterval(celeSoundTimer);celeSoundTimer=null;}
+  stopWinTrack();
+  if(celeBurstTimer){clearInterval(celeBurstTimer);celeBurstTimer=null;}
   if(celeEmojiTimer){clearInterval(celeEmojiTimer);celeEmojiTimer=null;}
   if(celeRaf){cancelAnimationFrame(celeRaf);celeRaf=null;}
   celeParticles=[];
@@ -512,14 +489,13 @@ function playGameOverCelebration(m){
   clearTypeBuf();
   stopScreenDucks();
   $('celebration').classList.add('on');
-  ensureAudio();
+  playWinTrack();
   celeEnd=Date.now()+8000;
   celeParticles=[];
   resizeCelebrationCanvas();
   spawnCelebrationBurst(120);
   spawnCelebrationEmoji();
-  for(let i=0;i<8;i++)setTimeout(fireRandomCelebrationSound,i*180);
-  celeSoundTimer=setInterval(fireRandomCelebrationSound,220+Math.random()*380);
+  celeBurstTimer=setInterval(celebrationBurst,320);
   celeEmojiTimer=setInterval(spawnCelebrationEmoji,90);
   if(celeRaf)cancelAnimationFrame(celeRaf);
   tickCelebration();
