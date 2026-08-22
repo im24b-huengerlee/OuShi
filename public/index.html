@@ -109,33 +109,19 @@ tr.you td{background:var(--tint);font-weight:600}
 .center-arrow path{stroke:var(--accent);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;fill:none}
 .center-arrow .arrow-head{fill:var(--accent);stroke:var(--accent);stroke-width:2.5;stroke-linejoin:round}
 @keyframes arrowPulse{from{opacity:.72}to{opacity:1}}
-.screen-ducks{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}
-.screen-ducks.on{opacity:1}
-.screen-ducks .s-duck{position:absolute;width:clamp(40px,5vw,76px);height:auto;transform-origin:center}
-.screen-ducks .s-duck.exploding{animation:duckExplode .48s ease-out forwards}
-@keyframes duckExplode{
- 0%{transform:scale(var(--sc,1)) rotate(var(--r,0deg));opacity:1;filter:brightness(1)}
- 35%{transform:scale(calc(var(--sc,1)*1.4)) rotate(calc(var(--r,0deg) + 12deg));opacity:1;filter:brightness(2.2) saturate(1.4)}
- 100%{transform:scale(calc(var(--sc,1)*2.4)) rotate(calc(var(--r,0deg) - 18deg));opacity:0;filter:brightness(3)}
-}
-.duck-boom-flash{position:fixed;border-radius:50%;pointer-events:none;z-index:41;
- background:radial-gradient(circle,#fffef0 0%,#ffd54a 18%,#ff6b00 42%,transparent 72%);
- animation:boomFlash .52s ease-out forwards}
-@keyframes boomFlash{0%{transform:scale(.15);opacity:1}100%{transform:scale(2.8);opacity:0}}
-.celebration{position:fixed;inset:0;z-index:500;pointer-events:none;visibility:hidden;opacity:0;
- background:radial-gradient(circle at 50% 40%,rgba(255,240,180,.35),rgba(255,80,0,.15) 40%,rgba(0,80,200,.12) 70%,rgba(0,0,0,.45));
- transition:opacity .25s ease,visibility .25s}
-.celebration.on{visibility:visible;opacity:1}
-#celeCanvas{position:absolute;inset:0;width:100%;height:100%}
-.cele-emoji-layer{position:absolute;inset:0;overflow:hidden}
-.cele-emoji{position:absolute;animation:celeEmojiPop 1.5s ease-out forwards;pointer-events:none;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))}
-@keyframes celeEmojiPop{
- 0%{transform:translateY(20px) scale(0) rotate(0deg);opacity:0}
- 12%{transform:translateY(0) scale(1.5) rotate(calc(var(--spin,360deg)*.15));opacity:1}
- 100%{transform:translateY(-80px) scale(2.8) rotate(var(--spin,360deg));opacity:0}
-}
-.game-shake{animation:gameShake .32s ease-out}
-@keyframes gameShake{0%,100%{transform:translate(0)}20%{transform:translate(-6px,4px)}40%{transform:translate(5px,-3px)}60%{transform:translate(-4px,-5px)}80%{transform:translate(4px,2px)}}
+.turn-ducks{position:fixed;inset:0;pointer-events:none;z-index:45;opacity:0;transition:opacity .35s}
+.turn-ducks.on{opacity:1}
+.turn-duck{position:absolute;width:clamp(56px,7vw,96px);height:auto;animation:duckPop .75s ease-in-out infinite alternate}
+.turn-duck.td2{animation-delay:.35s}
+@keyframes duckPop{from{transform:scale(.92) rotate(-4deg)}to{transform:scale(1.06) rotate(4deg)}}
+.turn-ducks.side-left .td1{left:clamp(10px,2vw,28px);top:14%}
+.turn-ducks.side-left .td2{left:clamp(10px,2vw,28px);bottom:16%}
+.turn-ducks.side-right .td1{right:clamp(10px,2vw,28px);top:14%}
+.turn-ducks.side-right .td2{right:clamp(10px,2vw,28px);bottom:16%}
+.turn-ducks.side-top .td1{top:clamp(52px,9vh,88px);left:16%}
+.turn-ducks.side-top .td2{top:clamp(52px,9vh,88px);right:16%}
+.turn-ducks.side-bottom .td1{bottom:clamp(72px,11vh,110px);left:16%}
+.turn-ducks.side-bottom .td2{bottom:clamp(72px,11vh,110px);right:16%}
 .center.alarm .syl,.center.alarm .secs{color:var(--a9)}
 .center.boom .syl{animation:flashSyl .22s steps(1) 1}
 @keyframes flashSyl{0%{color:var(--a9)}100%{color:var(--ink)}}
@@ -235,7 +221,9 @@ tr.you td{background:var(--tint);font-weight:600}
 </div>
 </section>
 <section id="game" class="screen">
-<div id="screenDucks" class="screen-ducks" aria-hidden="true"></div>
+<div id="turnDucks" class="turn-ducks" aria-hidden="true">
+<img class="turn-duck td1" alt="" src=""><img class="turn-duck td2" alt="" src="">
+</div>
 <div class="game-top">
 <span class="kick" data-i="gameKick">Spiel</span>
 <div id="langSeg3" class="langSeg"><button type="button" data-l="de" class="on">DE</button><button type="button" data-l="en">EN</button></div>
@@ -272,10 +260,6 @@ tr.you td{background:var(--tint);font-weight:600}
 </div>
 </div>
 </section>
-<div id="celebration" class="celebration" aria-hidden="true">
-<canvas id="celeCanvas"></canvas>
-<div id="celeEmojiLayer" class="cele-emoji-layer"></div>
-</div>
 <audio id="winTrack" preload="auto" src="/assets/animals.mp3"></audio>
 <script>
 const STR={
@@ -313,13 +297,12 @@ let L=localStorage.getItem('lang')||'de';
 const t=k=>STR[L][k]||STR.de[k];
 let ws,me,roomCode,hostId,state='home',clockOffset=0,turnPlayer,syllable='',fuseEndsAt=0,fuseMsTotal=12000,fuseSpeed=0;
 let players=[],myTurn=false,lastType=0,effects=[],liveTyping=new Map(),lastWords=new Map(),typeBuf='',ROOM_MAX=4;
-const DUCK_IMGS=['/assets/duck-a.png','/assets/duck-b.png','/assets/duck.png'];
-const SCREEN_DUCK_N=26;
-const CELE_EMOJIS=['🎉','🎊','💥','🔥','💦','📣','🦆','✨','🌊','🎆','💣','🚨','⭐','🥳','🌈','🎺','🍾','⚡','🌪️','💫'];
-let celeRaf=null,celeParticles=[],celeBurstTimer=null,celeEmojiTimer=null,celeEnd=0;
+const TURN_DUCKS=['/assets/duck-a.png','/assets/duck-b.png'];
+let lastTurnForDucks=null;
 const $=id=>document.getElementById(id);
 function show(sc){document.body.className=sc;['home','lobby','game','over'].forEach(s=>$(s).classList.toggle('on',s===sc));state=sc;
- if(sc==='game')initScreenDucks();else stopScreenDucks();}
+ if(sc!=='game'){lastTurnForDucks=null;const b=$('turnDucks');if(b)b.className='turn-ducks';}
+ if(sc!=='over')stopWinTrack();}
 function wsUrl(){return(location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/ws';}
 function doJoin(room){
   const name=$('nameIn').value.trim();
@@ -373,137 +356,23 @@ function stopWinTrack(){
   a.pause();
   a.currentTime=0;
 }
-function stopScreenDucks(){
-  const b=$('screenDucks');if(b){b.innerHTML='';b.classList.remove('on');}
+function turnSide(i,n){
+  const rad=playerAngle(i,n)*Math.PI/180,cos=Math.cos(rad),sin=Math.sin(rad);
+  if(Math.abs(cos)>=Math.abs(sin))return cos<0?'left':'right';
+  return sin<0?'top':'bottom';
 }
-function spawnScreenDuck(box){
-  const el=document.createElement('img');
-  el.className='s-duck';
-  el.src=DUCK_IMGS[Math.floor(Math.random()*DUCK_IMGS.length)];
-  el.alt='';
-  el.style.left=(1+Math.random()*97)+'%';
-  el.style.top=(4+Math.random()*90)+'%';
-  const rot=(Math.random()*34-17).toFixed(1),sc=(0.62+Math.random()*0.58).toFixed(2);
-  el.style.setProperty('--r',rot+'deg');el.style.setProperty('--sc',sc);
-  el.style.transform='rotate('+rot+'deg) scale('+sc+')';
-  box.appendChild(el);
-  return el;
-}
-function initScreenDucks(){
-  const box=$('screenDucks');
-  if(!box)return;
-  stopScreenDucks();
-  box.classList.add('on');
-  for(let i=0;i<SCREEN_DUCK_N;i++)spawnScreenDuck(box);
-}
-function explodeRandomDuck(){
-  const box=$('screenDucks');
-  if(!box||state!=='game')return;
-  const ds=[...box.querySelectorAll('.s-duck:not(.exploding)')];
-  if(!ds.length){spawnScreenDuck(box);return;}
-  explodeScreenDuck(ds[Math.floor(Math.random()*ds.length)]);
-}
-function explodeScreenDuck(d){
-  if(!d||d.classList.contains('exploding'))return;
-  const r=d.getBoundingClientRect();
-  d.classList.add('exploding');
-  const flash=document.createElement('div');
-  flash.className='duck-boom-flash';
-  const sz=Math.max(r.width*2.6,96);
-  flash.style.width=flash.style.height=sz+'px';
-  flash.style.left=(r.left+r.width/2-sz/2)+'px';
-  flash.style.top=(r.top+r.height/2-sz/2)+'px';
-  $('screenDucks').appendChild(flash);
-  const game=$('game');
-  if(game){game.classList.remove('game-shake');void game.offsetWidth;game.classList.add('game-shake');}
-  setTimeout(()=>flash.remove(),540);
-  setTimeout(()=>{
-    d.remove();
-    if(state==='game'&&$('screenDucks'))spawnScreenDuck($('screenDucks'));
-  },480);
-}
-function resizeCelebrationCanvas(){
-  const c=$('celeCanvas');if(!c)return;
-  c.width=innerWidth;c.height=innerHeight;
-}
-function spawnCelebrationBurst(n){
-  const w=innerWidth,h=innerHeight;
-  for(let i=0;i<n;i++){
-    const type=['confetti','fire','water','spark'][Math.floor(Math.random()*4)];
-    celeParticles.push({
-      x:Math.random()*w,y:-20-Math.random()*h*0.4,
-      vx:(Math.random()-0.5)*16,vy:Math.random()*8+3,
-      life:1,dec:0.003+Math.random()*0.007,size:5+Math.random()*12,type,
-      hue:type==='fire'?Math.random()*45+5:type==='water'?195+Math.random()*50:Math.random()*360,
-      rot:Math.random()*360,vr:(Math.random()-0.5)*14
-    });
+function pickTurnDuck(){return TURN_DUCKS[Math.floor(Math.random()*TURN_DUCKS.length)];}
+function updateTurnDucks(){
+  const box=$('turnDucks');
+  if(!box||state!=='game'){if(box)box.className='turn-ducks';return;}
+  const idx=players.findIndex(p=>p.id===turnPlayer);
+  if(idx<0||!players[idx].a){box.className='turn-ducks';return;}
+  if(turnPlayer!==lastTurnForDucks){
+    lastTurnForDucks=turnPlayer;
+    box.querySelector('.td1').src=pickTurnDuck();
+    box.querySelector('.td2').src=pickTurnDuck();
   }
-}
-function spawnCelebrationEmoji(){
-  const layer=$('celeEmojiLayer');if(!layer)return;
-  for(let i=0;i<3;i++){
-    const el=document.createElement('div');
-    el.className='cele-emoji';
-    el.textContent=CELE_EMOJIS[Math.floor(Math.random()*CELE_EMOJIS.length)];
-    el.style.left=(Math.random()*96+2)+'%';
-    el.style.top=(Math.random()*88+4)+'%';
-    el.style.fontSize=(28+Math.random()*64)+'px';
-    el.style.setProperty('--spin',(Math.random()*720-360)+'deg');
-    layer.appendChild(el);
-    setTimeout(()=>el.remove(),900+Math.random()*900);
-  }
-}
-function celebrationBurst(){
-  spawnCelebrationBurst(12+Math.floor(Math.random()*22));
-  if(Math.random()<0.35)spawnCelebrationEmoji();
-}
-function tickCelebration(){
-  const c=$('celeCanvas');
-  if(!c||!$('celebration').classList.contains('on'))return;
-  const ctx=c.getContext('2d');
-  ctx.clearRect(0,0,c.width,c.height);
-  if(Date.now()<celeEnd&&Math.random()<0.42)spawnCelebrationBurst(10+Math.floor(Math.random()*16));
-  celeParticles=celeParticles.filter(p=>{
-    p.x+=p.vx;p.y+=p.vy;p.vy+=p.type==='water'?0.38:0.14;p.vx*=0.992;p.life-=p.dec;p.rot+=p.vr;
-    if(p.life<=0||p.y>c.height+30)return false;
-    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot*Math.PI/180);ctx.globalAlpha=Math.max(0,p.life);
-    if(p.type==='confetti'){ctx.fillStyle='hsl('+p.hue+',92%,55%)';ctx.fillRect(-p.size/2,-p.size/4,p.size,p.size*0.55);}
-    else if(p.type==='fire'){ctx.fillStyle='hsl('+p.hue+',100%,55%)';ctx.beginPath();ctx.arc(0,0,p.size,0,7);ctx.fill();}
-    else if(p.type==='water'){ctx.fillStyle='hsla('+p.hue+',85%,62%,0.85)';ctx.beginPath();ctx.arc(0,0,p.size*0.65,0,7);ctx.fill();}
-    else{ctx.fillStyle='#fffef0';ctx.fillRect(-2,-p.size,p.size*0.35,p.size*2);}
-    ctx.restore();return true;
-  });
-  celeRaf=requestAnimationFrame(tickCelebration);
-}
-function stopCelebration(){
-  $('celebration').classList.remove('on');
-  stopWinTrack();
-  if(celeBurstTimer){clearInterval(celeBurstTimer);celeBurstTimer=null;}
-  if(celeEmojiTimer){clearInterval(celeEmojiTimer);celeEmojiTimer=null;}
-  if(celeRaf){cancelAnimationFrame(celeRaf);celeRaf=null;}
-  celeParticles=[];
-  const layer=$('celeEmojiLayer');if(layer)layer.innerHTML='';
-  const c=$('celeCanvas'),ctx=c&&c.getContext('2d');if(ctx)ctx.clearRect(0,0,c.width,c.height);
-}
-function playGameOverCelebration(m){
-  clearTypeBuf();
-  stopScreenDucks();
-  $('celebration').classList.add('on');
-  playWinTrack();
-  celeEnd=Date.now()+8000;
-  celeParticles=[];
-  resizeCelebrationCanvas();
-  spawnCelebrationBurst(120);
-  spawnCelebrationEmoji();
-  celeBurstTimer=setInterval(celebrationBurst,320);
-  celeEmojiTimer=setInterval(spawnCelebrationEmoji,90);
-  if(celeRaf)cancelAnimationFrame(celeRaf);
-  tickCelebration();
-  setTimeout(()=>{
-    stopCelebration();
-    show('over');
-    renderOver(m);
-  },8000);
+  box.className='turn-ducks on side-'+turnSide(idx,players.length);
 }
 function updateCenterArrow(){
   const a=$('turnArrow');
@@ -598,15 +467,15 @@ if(m.t==='ping'){send({t:'pong'});return;}
 if(m.t==='joined'){me=m.you;roomCode=m.room;clockOffset=(m.now||Date.now())-Date.now();show('lobby');renderLobby();err('homeErr','');return;}
 if(m.t==='err'){err(state==='lobby'?'lobbyErr':state==='game'?'gameErr':'homeErr',mapErr(m.msg));return;}
 if(m.t==='state'){hostId=m.host;players=m.players||[];if(m.fuseEndsAt)fuseEndsAt=m.fuseEndsAt;if(m.fuseMs)fuseMsTotal=m.fuseMs;if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;
- if(m.state==='lobby'){show('lobby');renderLobby();}else if(m.state==='playing'){lastWords.clear();show('game');renderGame(m);}return;}
+ if(m.state==='lobby'){show('lobby');renderLobby();}else if(m.state==='playing'){lastWords.clear();lastTurnForDucks=null;show('game');renderGame(m);}return;}
 if(m.t==='turn'){turnPlayer=m.player;syllable=m.syllable;fuseEndsAt=m.fuseEndsAt;fuseMsTotal=m.fuseMs||fuseMsTotal;fuseSpeed=m.fuseSpeed||0;effects=m.effects||[];myTurn=m.player===me;
  liveTyping.set(m.player,'');clearTypeBuf();renderGame();return;}
 if(m.t==='typing'){liveTyping.set(m.player,m.v||'');updateAllStationWords();return;}
 if(m.t==='accept'){err('gameErr','');if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;if(m.word)lastWords.set(m.player,{word:m.word,syllable});
- if(m.player===me){clearTypeBuf();liveTyping.set(me,'');}explodeRandomDuck();updateAllStationWords();return;}
+ if(m.player===me){clearTypeBuf();liveTyping.set(me,'');}updateAllStationWords();return;}
 if(m.t==='reject'){if(m.player===me)err('gameErr',mapErr(m.reason));return;}
 if(m.t==='boom'){err('gameErr','');fuseSpeed=0;const c=$('center');if(c){c.classList.add('boom');setTimeout(()=>c.classList.remove('boom'),220);}return;}
-if(m.t==='over'){playGameOverCelebration(m);return;}
+if(m.t==='over'){show('over');renderOver(m);playWinTrack();return;}
 }
 function renderLobby(){
   const rc=$('roomCode');rc.innerHTML='';
@@ -649,7 +518,7 @@ function renderGame(snap){
     arena.appendChild(st);
     fillTyping(st.querySelector('.typing'),info);
   });
-  requestAnimationFrame(updateCenterArrow);
+  requestAnimationFrame(()=>{updateCenterArrow();updateTurnDucks();});
   $('sylOnBomb').textContent=syllable||'?';
   const bd=$('turnBadges');bd.innerHTML='';
   if(isTurnEffects())effects.forEach(e=>{const s=document.createElement('span');s.textContent=effectLabel(e);bd.appendChild(s);});
@@ -683,7 +552,7 @@ $('joinBtn').onclick=()=>doJoin($('codeIn').value.trim().toUpperCase());
 $('copyBtn').onclick=()=>{navigator.clipboard.writeText(location.origin+'?r='+roomCode);err('lobbyErr',t('copied'));};
 $('startBtn').onclick=()=>send({t:'start'});
 $('againBtn').onclick=()=>send({t:'again'});
-$('homeBtn').onclick=()=>{location.href=location.pathname;};
+$('homeBtn').onclick=()=>{stopWinTrack();location.href=location.pathname;};
 const wordInEl=$('wordIn');
 wordInEl.addEventListener('input',()=>{
   if(state!=='game'||!myTurn)return;
@@ -698,8 +567,8 @@ wordInEl.addEventListener('keydown',e=>{
 $('game').addEventListener('click',()=>{if(state==='game'&&myTurn)focusWordInput();});
 document.addEventListener('keydown',onGameKey);
 let resizeT;
-window.addEventListener('resize',()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{resizeCelebrationCanvas();if(state==='game')renderGame();},120);});
-applyQuery();applyLang();loadHof();resizeCelebrationCanvas();
+window.addEventListener('resize',()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{if(state==='game')renderGame();},120);});
+applyQuery();applyLang();loadHof();
 </script>
 </body>
 </html>
