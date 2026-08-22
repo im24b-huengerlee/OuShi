@@ -155,6 +155,10 @@ tr.you td{background:var(--tint);font-weight:600}
 .overbody{max-width:min(1520px,96vw);margin:0 auto;padding:clamp(36px,4vh,64px) clamp(24px,3vw,56px) clamp(48px,5vh,80px);
  display:grid;grid-template-columns:1.2fr 1fr;gap:clamp(40px,4vw,64px);align-items:start}
 .overbtns{display:flex;flex-direction:column;gap:clamp(10px,1.2vw,16px)}
+.win-video{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.96);display:none;align-items:center;justify-content:center;padding:clamp(12px,2vw,24px)}
+.win-video.on{display:flex}
+.win-video-inner{position:relative;width:min(960px,92vw);aspect-ratio:16/9;max-height:92vh;background:#000}
+.win-video-inner iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 @media (max-width:720px){
  h1{font-size:44px}
  .screen{padding:24px 16px 40px}
@@ -260,6 +264,9 @@ tr.you td{background:var(--tint);font-weight:600}
 </div>
 </div>
 </section>
+<div id="winVideo" class="win-video" aria-hidden="true">
+<div class="win-video-inner"><div id="ytPlayer"></div></div>
+</div>
 <script>
 const STR={
 de:{kicker:'Wort-Bombe mit Sabotage',nameLbl:'Name',namePh:'Dein Name',create:'Raum erstellen',or:'ODER',codePh:'CODE',join:'Beitreten',
@@ -296,6 +303,8 @@ let L=localStorage.getItem('lang')||'de';
 const t=k=>STR[L][k]||STR.de[k];
 let ws,me,roomCode,hostId,state='home',clockOffset=0,turnPlayer,syllable='',fuseEndsAt=0,fuseMsTotal=12000,fuseSpeed=0;
 let players=[],myTurn=false,lastType=0,effects=[],liveTyping=new Map(),lastWords=new Map(),typeBuf='',ROOM_MAX=4;
+const WIN_VIDEO_ID='yElybV3qYTo';
+let pendingOverMsg=null,ytPlayer=null,ytApiLoading=false;
 const $=id=>document.getElementById(id);
 function show(sc){document.body.className=sc;['home','lobby','game','over'].forEach(s=>$(s).classList.toggle('on',s===sc));state=sc;
  if(sc!=='game'){lastTurnForDucks=null;const b=$('turnDucks');if(b)b.className='turn-ducks';}}
@@ -461,7 +470,7 @@ if(m.t==='accept'){err('gameErr','');if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;
  if(m.player===me){clearTypeBuf();liveTyping.set(me,'');}updateAllStationWords();return;}
 if(m.t==='reject'){if(m.player===me)err('gameErr',mapErr(m.reason));return;}
 if(m.t==='boom'){err('gameErr','');fuseSpeed=0;const c=$('center');if(c){c.classList.add('boom');setTimeout(()=>c.classList.remove('boom'),220);}return;}
-if(m.t==='over'){show('over');renderOver(m);return;}
+if(m.t==='over'){playWinVideo(m);return;}
 }
 function renderLobby(){
   const rc=$('roomCode');rc.innerHTML='';
@@ -532,6 +541,55 @@ function renderOver(m){
     '<div class="stat"><label>'+t('stFast')+'</label><b>'+(st.fs!=null?st.fs+'ms':t('stNone'))+'</b></div>';
   renderHof(m.highscores,'hofOver');
   $('againBtn').style.display=me===hostId?'block':'none';
+}
+function loadYouTubeApi(cb){
+  if(window.YT&&window.YT.Player){cb();return;}
+  window._ytReadyCbs=window._ytReadyCbs||[];
+  window._ytReadyCbs.push(cb);
+  if(ytApiLoading)return;
+  ytApiLoading=true;
+  const s=document.createElement('script');
+  s.src='https://www.youtube.com/iframe_api';
+  document.head.appendChild(s);
+}
+window.onYouTubeIframeAPIReady=function(){
+  (window._ytReadyCbs||[]).forEach(f=>f());
+  window._ytReadyCbs=[];
+};
+function finishWinVideo(){
+  $('winVideo').classList.remove('on');
+  if(ytPlayer){try{ytPlayer.stopVideo();}catch(_){}}
+  const m=pendingOverMsg;
+  pendingOverMsg=null;
+  if(m){show('over');renderOver(m);}
+}
+function startWinVideoPlayback(){
+  if(!ytPlayer)return;
+  try{
+    ytPlayer.loadVideoById({videoId:WIN_VIDEO_ID,startSeconds:0});
+    ytPlayer.playVideo();
+  }catch(_){finishWinVideo();}
+}
+function ensureYtPlayer(cb){
+  loadYouTubeApi(()=>{
+    if(ytPlayer){cb();return;}
+    ytPlayer=new YT.Player('ytPlayer',{
+      videoId:WIN_VIDEO_ID,
+      playerVars:{autoplay:1,rel:0,modestbranding:1,playsinline:1,origin:location.origin},
+      events:{
+        onReady(){cb();},
+        onStateChange(e){if(e.data===YT.PlayerState.ENDED)finishWinVideo();},
+        onError(){finishWinVideo();}
+      }
+    });
+  });
+}
+function playWinVideo(m){
+  pendingOverMsg=m;
+  state='video';
+  clearTypeBuf();
+  $('winVideo').classList.add('on');
+  ensureYtPlayer(startWinVideoPlayback);
 }
 $('createBtn').onclick=()=>doJoin(null);
 $('joinBtn').onclick=()=>doJoin($('codeIn').value.trim().toUpperCase());
