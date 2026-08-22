@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Silbenbombe</title>
+<style>
+:root{--bg:#0f1117;--card:#1a1d27;--accent:#ff6b35;--text:#e8eaed;--muted:#8b919a;--danger:#ff4444;--ok:#4ade80}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.screen{display:none;padding:1.25rem;max-width:720px;margin:0 auto}
+.screen.on{display:block}
+h1{font-size:1.75rem;margin-bottom:.5rem}
+h2{font-size:1.1rem;color:var(--muted);margin-bottom:1rem;font-weight:500}
+input,button{font:inherit;padding:.6rem .9rem;border-radius:8px;border:1px solid #333;background:var(--card);color:var(--text)}
+button{background:var(--accent);border:none;cursor:pointer;font-weight:600}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.ghost{background:transparent;border:1px solid #444}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem}
+.row input{flex:1;min-width:140px}
+.err{color:var(--danger);min-height:1.2em;margin:.5rem 0}
+.rules{background:var(--card);padding:1rem;border-radius:10px;margin:1rem 0;line-height:1.5;font-size:.95rem;border-left:3px solid var(--accent)}
+.players{list-style:none;margin:1rem 0}
+.players li{padding:.5rem .75rem;background:var(--card);margin-bottom:.35rem;border-radius:8px;display:flex;justify-content:space-between}
+.players li.host{border-left:3px solid var(--accent)}
+.code{font-size:2rem;letter-spacing:.3em;font-weight:700;text-align:center;margin:1rem 0}
+.hof{margin-top:2rem}
+.hof table{width:100%;border-collapse:collapse;font-size:.9rem}
+.hof th,.hof td{padding:.4rem;text-align:left;border-bottom:1px solid #333}
+.game-wrap{position:relative;min-height:70vh;display:flex;flex-direction:column;align-items:center}
+.ring{position:relative;width:min(90vw,420px);height:min(90vw,420px);margin:1rem auto}
+.ring .card{position:absolute;left:50%;top:50%;width:100px;margin:-30px -50px;text-align:center;background:var(--card);padding:.4rem;border-radius:8px;font-size:.8rem;transition:transform .2s,box-shadow .2s}
+.ring .card.active{box-shadow:0 0 0 2px var(--accent)}
+.ring .card.dead{opacity:.35}
+.ring .card .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ring .card .meta{font-size:.7rem;color:var(--muted)}
+.ring .card .type{color:var(--accent);min-height:1em;font-size:.75rem}
+.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:140px}
+.syl{font-size:2.5rem;font-weight:800;color:var(--accent);line-height:1}
+.fuse-wrap{width:120px;height:120px;margin:0 auto}
+.fuse-wrap svg{width:100%;height:100%;transform:rotate(-90deg)}
+.fuse-wrap circle{fill:none;stroke-width:6;stroke-linecap:round}
+.fuse-bg{stroke:#333}
+.fuse-fg{stroke:var(--ok);transition:stroke .3s}
+.fuse-fg.warn{stroke:var(--danger)}
+.badges{margin-top:.35rem;font-size:.75rem;color:var(--muted)}
+.bottom{width:100%;max-width:420px;margin-top:auto;padding-bottom:1rem}
+.bottom input{width:100%;font-size:1.1rem;text-align:center;margin-bottom:.5rem}
+.sabotage{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.5rem}
+.sabotage button{font-size:.75rem;padding:.4rem .6rem;background:#2a2f3a}
+.sabotage button.sel{outline:2px solid var(--accent)}
+.over{text-align:center;padding:2rem}
+.over h2{color:var(--accent)}
+@media(max-width:600px){
+.ring{width:100%;height:auto;min-height:200px;display:flex;flex-direction:column;gap:.5rem;align-items:stretch}
+.ring .card{position:static;transform:none!important;margin:0;width:100%}
+.center{position:static;transform:none;margin:1rem auto}
+}
+</style>
+</head>
+<body class="home">
+<section id="home" class="screen on">
+<h1>Silbenbombe</h1>
+<h2>Wort-Bombe mit Sabotage</h2>
+<div class="row"><input id="nameIn" maxlength="14" placeholder="Dein Name" autocomplete="off"></div>
+<div class="row"><button id="createBtn">Raum erstellen</button></div>
+<div class="row"><input id="codeIn" maxlength="4" placeholder="Raumcode" style="text-transform:uppercase"><button id="joinBtn">Beitreten</button></div>
+<p class="err" id="homeErr"></p>
+<div class="hof"><h2>Hall of Fame</h2><table id="hofHome"><thead><tr><th>Name</th><th>Wörter</th><th>Längstes</th></tr></thead><tbody></tbody></table></div>
+</section>
+<section id="lobby" class="screen">
+<h1>Lobby</h1>
+<div class="code" id="roomCode"></div>
+<button class="ghost" id="copyBtn">Link kopieren</button>
+<ul class="players" id="lobbyPlayers"></ul>
+<div class="rules">
+<strong>So geht's:</strong><br>
+1. Du hast die Bombe — tippe ein Wort mit der Silbe in der Mitte.<br>
+2. Zu langsam? Ein Leben weniger. Letzter Spieler gewinnt.<br>
+3. Schnell (&lt;3s) = Sabotage-Token: Kurzschluss, Buchstabensperre oder Doppelzünder!
+</div>
+<button id="startBtn" disabled>Starten</button>
+<p class="err" id="lobbyErr"></p>
+</section>
+<section id="game" class="screen">
+<div class="game-wrap">
+<div class="ring" id="ring"></div>
+<div class="bottom">
+<div class="badges" id="badges"></div>
+<input id="wordIn" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Wort eingeben…" disabled>
+<div class="sabotage" id="sabotage"></div>
+<p class="err" id="gameErr"></p>
+</div>
+</div>
+</section>
+<section id="over" class="screen over">
+<h2 id="winnerTxt"></h2>
+<div class="hof"><h2>Hall of Fame</h2><table id="hofOver"><thead><tr><th>Name</th><th>Wörter</th><th>Längstes</th></tr></thead><tbody></tbody></table></div>
+<button id="againBtn">Nochmal (Host)</button>
+<button class="ghost" id="homeBtn">Zur Startseite</button>
+</section>
+<script>
+const T={title:'Silbenbombe',create:'Raum erstellen',join:'Beitreten',copy:'Link kopieren',start:'Starten',placeholder:'Wort eingeben…',sabotage:{short:'⚡ Kurzschluss',ban:'🔒 Buchstabe',double:'✌ 2 Wörter'},effects:{short:'⚡ Kurzschluss',banLetter:'🔒 kein ',double:'✌ 2 Wörter'},winner:'Gewinner:',copied:'Link kopiert!'};
+let ws,me,roomCode,hostId,state='home',clockOffset=0,turnPlayer,syllable='',fuseEndsAt=0,players=[],myTurn=false,sabotageKind=null,lastType=0,effects=[];
+const $=id=>document.getElementById(id);
+function show(sc){document.body.className=sc;['home','lobby','game','over'].forEach(s=>$(s).classList.toggle('on',s===sc));state=sc;}
+function wsUrl(){const p=location.protocol==='https:'?'wss:':'ws:';return p+'//'+location.host+'/ws';}
+function doJoin(room) {
+  const name = $('nameIn').value.trim();
+  if (!name) return err('homeErr', 'Name fehlt');
+  if (room && room.length !== 4) return err('homeErr', '4 Buchstaben');
+  err('homeErr', '');
+  if (ws && ws.readyState === 1) { send({ t: 'join', name, room: room || undefined }); return; }
+  ws = new WebSocket(wsUrl());
+  ws.onmessage = (e) => handle(JSON.parse(e.data));
+  ws.onclose = () => { if (state !== 'home') setTimeout(() => doJoin(room), 1500); };
+  ws.onopen = () => send({ t: 'join', name, room: room || undefined });
+}
+function connect(){}
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+function err(id,msg){$(id).textContent=msg||'';}
+function applyQuery(){const r=new URLSearchParams(location.search).get('r');if(r)$('codeIn').value=r.toUpperCase();}
+function renderHof(rows,tableId){const tb=$(tableId).querySelector('tbody');tb.innerHTML='';(rows||[]).forEach(r=>{const tr=document.createElement('tr');tr.innerHTML='<td>'+esc(r.player_name)+'</td><td>'+r.words+'</td><td>'+esc(r.longest||'')+'</td>';tb.appendChild(tr);});}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function loadHof(){try{const r=await fetch('/api/highscores');renderHof(await r.json(),'hofHome');}catch(_){}}
+function handle(m){
+if(m.t==='ping'){send({t:'pong'});return;}
+if(m.t==='joined'){me=m.you;roomCode=m.room;clockOffset=(m.now||Date.now())-Date.now();show('lobby');$('roomCode').textContent=roomCode;err('homeErr','');return;}
+if(m.t==='err'){const el=state==='lobby'?'lobbyErr':state==='game'?'gameErr':'homeErr';err(el,m.msg);return;}
+if(m.t==='state'){hostId=m.host;players=m.players||[];if(m.state==='lobby'){show('lobby');renderLobby();}else if(m.state==='playing'){show('game');renderGame(m);}else if(m.state==='ended'){renderGame(m);}return;}
+if(m.t==='turn'){turnPlayer=m.player;syllable=m.syllable;fuseEndsAt=m.fuseEndsAt;effects=m.effects||[];myTurn=m.player===me;renderGame();if(myTurn){$('wordIn').disabled=false;$('wordIn').focus();}else{$('wordIn').disabled=true;$('wordIn').value='';}return;}
+if(m.t==='typing'){const c=document.querySelector('[data-p="'+m.player+'"] .type');if(c)c.textContent=m.v||'';return;}
+if(m.t==='accept'){err('gameErr','');$('wordIn').value='';return;}
+if(m.t==='reject'){if(m.player===me)err('gameErr',m.reason);return;}
+if(m.t==='boom'){err('gameErr','');return;}
+if(m.t==='sabotage'){sabotageKind=null;document.querySelectorAll('.sabotage button').forEach(b=>b.classList.remove('sel'));return;}
+if(m.t==='over'){show('over');const w=(m.winner&&players.find(p=>p.id===m.winner))||{};$('winnerTxt').textContent=T.winner+' '+(w.n||'?');renderHof(m.highscores,'hofOver');$('againBtn').style.display=me===hostId?'inline-block':'none';return;}
+}
+function renderLobby(){
+$('roomCode').textContent=roomCode;
+const ul=$('lobbyPlayers');ul.innerHTML='';
+players.forEach(p=>{const li=document.createElement('li');li.className=p.id===hostId?'host':'';li.textContent=p.n+(p.id===hostId?' (Host)':'');ul.appendChild(li);});
+$('startBtn').disabled=!(me===hostId&&players.length>=2);
+$('startBtn').style.display=me===hostId?'inline-block':'none';
+}
+function hearts(n){let s='';for(let i=0;i<n;i++)s+='♥';return s||'💀';}
+function renderGame(snap){
+const m=snap||{};if(m.players)players=m.players;if(m.syllable)syllable=m.syllable;if(m.fuseEndsAt)fuseEndsAt=m.fuseEndsAt;if(m.turn)turnPlayer=m.turn;myTurn=turnPlayer===me;
+const ring=$('ring');ring.innerHTML='';
+const n=players.length;
+players.forEach((p,i)=>{
+const ang=n?360/n*i:0;
+const card=document.createElement('div');
+card.className='card'+(p.id===turnPlayer?' active':'')+(p.a?'':' dead');
+card.dataset.p=p.id;
+card.style.transform='rotate('+ang+'deg) translate(0,-'+Math.min(160,window.innerWidth*0.35)+'px) rotate('+(-ang)+'deg)';
+card.innerHTML='<div class="n">'+esc(p.n)+'</div><div class="meta">'+hearts(p.l)+' · '+p.tk+'🎯</div><div class="type">'+(p.id===turnPlayer?(p.id===me?$('wordIn').value:p.c?'…':''):'')+'</div>';
+card.onclick=()=>onTarget(p);
+ring.appendChild(card);
+});
+const center=document.createElement('div');center.className='center';
+center.innerHTML='<div class="syl">'+esc(syllable||'?')+'</div><div class="fuse-wrap"><svg viewBox="0 0 100 100"><circle class="fuse-bg" cx="50" cy="50" r="42"/><circle class="fuse-fg" id="fuseArc" cx="50" cy="50" r="42" stroke-dasharray="264" stroke-dashoffset="0"/></svg></div><div class="badges" id="turnBadges"></div>';
+ring.appendChild(center);
+const bd=center.querySelector('#turnBadges');
+if(myTurn&&effects.length){bd.textContent=effects.map(e=>effectLabel(e)).join(' · ');}
+renderSabotage();
+$('wordIn').disabled=!myTurn;
+if(myTurn)$('wordIn').focus();else $('wordIn').value='';
+requestAnimationFrame(tickFuse);
+}
+function effectLabel(e){if(e==='short')return T.effects.short;if(e==='double')return T.effects.double;if(e.startsWith('banLetter:'))return T.effects.banLetter+e.slice(10).toUpperCase();return e;}
+function tickFuse(){
+const arc=$('fuseArc');if(!arc)return;
+const left=Math.max(0,fuseEndsAt+clockOffset-Date.now());
+const total=12000;const pct=Math.min(1,left/total);
+const circ=264;arc.style.strokeDashoffset=circ*(1-pct);
+arc.classList.toggle('warn',left<3000&&left>0);
+if(state==='game'&&fuseEndsAt)requestAnimationFrame(tickFuse);
+}
+function renderSabotage(){
+const bar=$('sabotage');bar.innerHTML='';
+const meP=players.find(p=>p.id===me);if(!meP||!meP.tk)return;
+[['short',T.sabotage.short],['ban',T.sabotage.ban],['double',T.sabotage.double]].forEach(([k,lbl])=>{
+const b=document.createElement('button');b.textContent=lbl;b.onclick=()=>{sabotageKind=k;bar.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};bar.appendChild(b);
+});
+}
+function onTarget(p){
+if(!sabotageKind||p.id===me||!p.a)return;
+send({t:'sabotage',target:p.id,kind:sabotageKind});sabotageKind=null;document.querySelectorAll('.sabotage button').forEach(b=>b.classList.remove('sel'));
+}
+$('createBtn').onclick=()=>doJoin(null);
+$('joinBtn').onclick=()=>doJoin($('codeIn').value.trim().toUpperCase());
+$('copyBtn').onclick=()=>{navigator.clipboard.writeText(location.origin+'?r='+roomCode);err('lobbyErr',T.copied);};
+$('startBtn').onclick=()=>send({t:'start'});
+$('againBtn').onclick=()=>send({t:'again'});
+$('homeBtn').onclick=()=>{location.href=location.pathname;};
+$('wordIn').oninput=()=>{const now=Date.now();if(now-lastType<100)return;lastType=now;if(myTurn)send({t:'typing',v:$('wordIn').value});const c=document.querySelector('[data-p="'+me+'"] .type');if(c)c.textContent=$('wordIn').value;};
+$('wordIn').onkeydown=e=>{if(e.key==='Enter'&&myTurn){send({t:'submit',v:$('wordIn').value});}};
+applyQuery();loadHof();
+</script>
+</body>
+</html>

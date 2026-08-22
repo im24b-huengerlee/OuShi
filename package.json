@@ -1,0 +1,16 @@
+{
+  "name": "silbenbombe",
+  "version": "1.0.0",
+  "description": "Real-time multiplayer word bomb game",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "build-wordlist": "node scripts/build-wordlist.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1",
+    "ws": "^8.18.0"
+  }
+}
