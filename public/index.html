@@ -378,18 +378,11 @@ function highlightWord(text,syl){
 }
 function wordInfo(p){
   const last=lastWords.get(p.id);
-  if(p.id===turnPlayer){
-    const text=p.id===me?typeBuf:(liveTyping.get(p.id)||'');
-    if(text)return{text,syllable,live:true};
-    if(last)return{text:last.word,syllable:last.syllable,live:false};
-    return{text:'',syllable:'',live:false};
-  }
-  if(last)return{text:last.word,syllable:last.syllable,live:false};
-  return{text:'',syllable:'',live:false};
+  if(last)return{text:last.word,syllable:last.syllable};
+  return{text:'',syllable:''};
 }
 function pushTyping(){
   liveTyping.set(me,typeBuf);
-  updateAllStationWords();
   const now=Date.now();
   if(now-lastType<80)return;
   lastType=now;
@@ -405,10 +398,8 @@ function onGameKey(e){
 function fillTyping(el,info){
   if(!el)return;
   if(!info.text){el.innerHTML='';el.classList.remove('lastword');return;}
-  el.classList.toggle('lastword',!info.live);
-  let html=highlightWord(info.text,info.syllable);
-  if(info.live&&info.text&&turnPlayer===me&&myTurn)html+='<span class="caret">|</span>';
-  el.innerHTML=html;
+  el.classList.add('lastword');
+  el.innerHTML=highlightWord(info.text,info.syllable);
 }
 function updateAllStationWords(){
   players.forEach(p=>{
