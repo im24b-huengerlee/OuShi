@@ -92,17 +92,17 @@ function wordInDict(word) {
 
 function validateWord(word, syllable, room, playerId) {
   const w = (word || '').trim().toLowerCase();
-  if (!w || w.length < 2 || w.length > 30) return { ok: false, reason: 'Kein Wort' };
-  if (!/^[a-zäöüß]+$/.test(w)) return { ok: false, reason: 'Kein Wort' };
-  if (!w.includes(syllable)) return { ok: false, reason: 'Silbe fehlt' };
-  if (!wordInDict(w)) return { ok: false, reason: 'Kein Wort' };
-  if (room.usedWords.has(w)) return { ok: false, reason: 'Schon benutzt' };
+  if (!w || w.length < 2 || w.length > 30) return { ok: false, reason: 'noWord' };
+  if (!/^[a-zäöüß]+$/.test(w)) return { ok: false, reason: 'noWord' };
+  if (!w.includes(syllable)) return { ok: false, reason: 'noSyllable' };
+  if (!wordInDict(w)) return { ok: false, reason: 'noWord' };
+  if (room.usedWords.has(w)) return { ok: false, reason: 'used' };
 
   const effects = room.pendingEffects.get(playerId) || [];
   for (const ef of effects) {
     if (ef.startsWith('banLetter:')) {
       const ch = ef.slice(10);
-      if (w.includes(ch)) return { ok: false, reason: 'Buchstabe gesperrt' };
+      if (w.includes(ch)) return { ok: false, reason: 'banned' };
     }
   }
   return { ok: true, word: w };

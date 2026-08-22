@@ -40,7 +40,7 @@ async function main() {
   const bad = await wsConnect();
   send(bad, { t: 'join', name: 'X', room: 'ZZZZ' });
   const err = await waitMsg(bad, (m) => m.t === 'err');
-  console.log(err.msg === 'Raum nicht gefunden' ? 'OK invalid room' : 'FAIL invalid room');
+  console.log(err.msg === 'errNoRoom' ? 'OK invalid room' : 'FAIL invalid room');
 
   const b = await wsConnect();
   send(b, { t: 'join', name: 'TestB', room: code });

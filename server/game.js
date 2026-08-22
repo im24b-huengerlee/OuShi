@@ -40,6 +40,7 @@ function snapshot(room) {
       a: p.alive,
       c: p.connected,
       ab: used ? [...used].sort().join('') : '',
+      st: { w: p.stats.words, lg: p.stats.longestWord || '', fs: p.stats.fastestMs },
     };
   }).filter(Boolean);
   const turnId = room.order[room.turnIndex];
@@ -51,6 +52,8 @@ function snapshot(room) {
     turn: room.state === 'playing' ? turnId : null,
     syllable: room.syllable || '',
     fuseEndsAt: room.fuseEndsAt || 0,
+    fuseSpeed: room.fuseSpeed || 0,
+    fuseMs: room.currentFuseMs || 0,
     players,
   };
 }
@@ -70,7 +73,9 @@ function popEffects(room, playerId) {
 }
 
 function computeFuseMs(room, effects) {
-  let ms = Math.max(room.settings.minFuseMs, room.settings.baseFuseMs - room.roundsPlayed * 150);
+  let ms = Math.max(room.settings.minFuseMs, room.settings.baseFuseMs - room.roundsPlayed * 100);
+  const speed = room.fuseSpeed || 0;
+  ms = Math.max(room.settings.minFuseMs, Math.floor(ms / (1 + speed * 0.18)));
   if (effects.includes('short')) ms = Math.max(room.settings.minFuseMs, Math.floor(ms * 0.6));
   return ms;
 }
@@ -108,6 +113,7 @@ function advanceTurn(room) {
 
     if (!player.connected) {
       player.lives--;
+      room.fuseSpeed = 0;
       if (player.lives <= 0) {
         player.alive = false;
         broadcastAll(room, { t: 'boom', player: pid, livesLeft: 0 });
@@ -127,6 +133,7 @@ function advanceTurn(room) {
     room.roundsPlayed++;
 
     const fuseMs = computeFuseMs(room, effects);
+    room.currentFuseMs = fuseMs;
     room.turnStartedAt = Date.now();
     room.fuseEndsAt = room.turnStartedAt + fuseMs;
     room.fuseTimer = setTimeout(() => onTimeout(room, pid), fuseMs);
@@ -136,6 +143,7 @@ function advanceTurn(room) {
       player: pid,
       syllable: room.syllable,
       fuseMs,
+      fuseSpeed: room.fuseSpeed || 0,
       effects,
       fuseEndsAt: room.fuseEndsAt,
     });
@@ -150,6 +158,7 @@ function onTimeout(room, pid) {
   const player = room.players.get(pid);
   if (!player || !player.alive) return;
   player.lives--;
+  room.fuseSpeed = 0;
   broadcastAll(room, { t: 'boom', player: pid, livesLeft: player.lives });
   if (player.lives <= 0) player.alive = false;
   if (living(room).length <= 1) return endGame(room);
@@ -199,7 +208,8 @@ function handleSubmit(room, player, word) {
   player.typing = '';
 
   room.doubleRemaining--;
-  broadcastAll(room, { t: 'accept', player: player.id, word: res.word, tokenEarned });
+  room.fuseSpeed = (room.fuseSpeed || 0) + 1;
+  broadcastAll(room, { t: 'accept', player: player.id, word: res.word, fuseSpeed: room.fuseSpeed });
 
   if (room.doubleRemaining > 0) {
     sendState(room);
@@ -211,11 +221,11 @@ function handleSubmit(room, player, word) {
 }
 
 function handleSabotage(room, from, targetId, kind) {
-  if (room.state !== 'playing') return { ok: false, msg: 'Spiel läuft nicht' };
-  if (from.id === targetId) return { ok: false, msg: 'Nicht auf dich selbst' };
-  if (from.tokens < 1) return { ok: false, msg: 'Keine Token' };
+  if (room.state !== 'playing') return { ok: false, msg: 'errStartFail' };
+  if (from.id === targetId) return { ok: false, msg: 'errSelf' };
+  if (from.tokens < 1) return { ok: false, msg: 'errNoToken' };
   const target = room.players.get(targetId);
-  if (!target || !target.alive) return { ok: false, msg: 'Ziel ungültig' };
+  if (!target || !target.alive) return { ok: false, msg: 'errBadTarget' };
   const allowed = ['short', 'double'];
   let effect = kind;
   if (kind === 'ban') {
@@ -257,6 +267,7 @@ function startGame(room) {
   room.usedWords = new Set();
   room.usedLetters = new Map();
   room.pendingEffects = new Map();
+  room.fuseSpeed = 0;
   room.startedAt = new Date();
   dictionary.resetGame(room.code);
   for (const p of room.players.values()) {

@@ -98,7 +98,7 @@ function attachPlayer(room, socket, name) {
 function join(socket, { room: code, name }) {
   const n = sanitizeName(name);
   if (n.length < 1) {
-    socket.send(JSON.stringify({ t: 'err', msg: 'Name fehlt' }));
+    socket.send(JSON.stringify({ t: 'err', msg: 'errNoName' }));
     return;
   }
 
@@ -107,7 +107,7 @@ function join(socket, { room: code, name }) {
     code = String(code).toUpperCase().trim();
     room = rooms.get(code);
     if (!room) {
-      socket.send(JSON.stringify({ t: 'err', msg: 'Raum nicht gefunden' }));
+      socket.send(JSON.stringify({ t: 'err', msg: 'errNoRoom' }));
       return;
     }
   } else {
@@ -116,7 +116,7 @@ function join(socket, { room: code, name }) {
 
   for (const p of room.players.values()) {
     if (p.name.toLowerCase() === n.toLowerCase()) {
-      socket.send(JSON.stringify({ t: 'err', msg: 'Name schon vergeben' }));
+      socket.send(JSON.stringify({ t: 'err', msg: 'errNameTaken' }));
       return;
     }
   }
@@ -157,12 +157,12 @@ function handleMessage(socket, msg) {
       if (player) player.missedPongs = 0;
       break;
     case 'start':
-      if (!player || player.id !== room.hostId) return socket.send(JSON.stringify({ t: 'err', msg: 'Nur der Host' }));
-      if (room.players.size < 2) return socket.send(JSON.stringify({ t: 'err', msg: 'Mindestens 2 Spieler' }));
-      if (!game.startGame(room)) socket.send(JSON.stringify({ t: 'err', msg: 'Start fehlgeschlagen' }));
+      if (!player || player.id !== room.hostId) return socket.send(JSON.stringify({ t: 'err', msg: 'errHostOnly' }));
+      if (room.players.size < 2) return socket.send(JSON.stringify({ t: 'err', msg: 'errMinPlayers' }));
+      if (!game.startGame(room)) socket.send(JSON.stringify({ t: 'err', msg: 'errStartFail' }));
       break;
     case 'again':
-      if (!player || player.id !== room.hostId) return socket.send(JSON.stringify({ t: 'err', msg: 'Nur der Host' }));
+      if (!player || player.id !== room.hostId) return socket.send(JSON.stringify({ t: 'err', msg: 'errHostOnly' }));
       if (room.state !== 'ended') return;
       game.resetLobby(room);
       break;
