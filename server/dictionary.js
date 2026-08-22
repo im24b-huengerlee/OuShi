@@ -93,7 +93,8 @@ function wordInDict(word) {
 function validateWord(word, syllable, room, playerId) {
   const w = (word || '').trim().toLowerCase();
   if (!w || w.length < 2 || w.length > 30) return { ok: false, reason: 'noWord' };
-  if (!/^[a-zäöüß]+$/.test(w)) return { ok: false, reason: 'noWord' };
+  if (/ß/.test(w)) return { ok: false, reason: 'noWord' };
+  if (!/^[a-zäöü]+$/.test(w)) return { ok: false, reason: 'noWord' };
   if (!w.includes(syllable)) return { ok: false, reason: 'noSyllable' };
   if (!wordInDict(w)) return { ok: false, reason: 'noWord' };
   if (room.usedWords.has(w)) return { ok: false, reason: 'used' };

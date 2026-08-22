@@ -315,7 +315,7 @@ let players=[],myTurn=false,lastType=0,effects=[],liveTyping=new Map(),lastWords
 const DUCK_IMGS=['/assets/duck-a.png','/assets/duck-b.png','/assets/duck.png'];
 const SCREEN_DUCK_N=26;
 const CELE_EMOJIS=['🎉','🎊','💥','🔥','💦','📣','🦆','✨','🌊','🎆','💣','🚨','⭐','🥳','🌈','🎺','🍾','⚡','🌪️','💫'];
-let audioCtx=null,duckExplodeTimer=null,celeRaf=null,celeParticles=[],celeSoundTimer=null,celeEmojiTimer=null,celeEnd=0;
+let audioCtx=null,celeRaf=null,celeParticles=[],celeSoundTimer=null,celeEmojiTimer=null,celeEnd=0;
 const $=id=>document.getElementById(id);
 function show(sc){document.body.className=sc;['home','lobby','game','over'].forEach(s=>$(s).classList.toggle('on',s===sc));state=sc;
  if(sc==='game')initScreenDucks();else stopScreenDucks();}
@@ -393,7 +393,6 @@ function sfxAirhorn(){
 function sfxSplash(){sfxNoise(0.28,0.45,2400);}
 function sfxPop(){sfxNoise(0.07,0.28,3200);}
 function stopScreenDucks(){
-  if(duckExplodeTimer){clearInterval(duckExplodeTimer);duckExplodeTimer=null;}
   const b=$('screenDucks');if(b){b.innerHTML='';b.classList.remove('on');}
 }
 function spawnScreenDuck(box){
@@ -415,11 +414,13 @@ function initScreenDucks(){
   stopScreenDucks();
   box.classList.add('on');
   for(let i=0;i<SCREEN_DUCK_N;i++)spawnScreenDuck(box);
-  duckExplodeTimer=setInterval(()=>{
-    if(state!=='game')return;
-    const ds=[...box.querySelectorAll('.s-duck:not(.exploding)')];
-    if(ds.length)explodeScreenDuck(ds[Math.floor(Math.random()*ds.length)]);
-  },1600+Math.random()*2400);
+}
+function explodeRandomDuck(){
+  const box=$('screenDucks');
+  if(!box||state!=='game')return;
+  const ds=[...box.querySelectorAll('.s-duck:not(.exploding)')];
+  if(!ds.length){spawnScreenDuck(box);return;}
+  explodeScreenDuck(ds[Math.floor(Math.random()*ds.length)]);
 }
 function explodeScreenDuck(d){
   if(!d||d.classList.contains('exploding'))return;
@@ -584,7 +585,7 @@ function onGameKey(e){
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key==='Enter'){e.preventDefault();if(typeBuf.trim())send({t:'submit',v:typeBuf});return;}
   if(e.key==='Backspace'){e.preventDefault();typeBuf=typeBuf.slice(0,-1);$('wordIn').value=typeBuf;pushTyping();return;}
-  if(e.key.length===1&&/^[a-zA-ZäöüÄÖÜß-]$/.test(e.key)){e.preventDefault();if(typeBuf.length<40){typeBuf+=e.key;$('wordIn').value=typeBuf;pushTyping();}}
+  if(e.key.length===1&&/^[a-zA-ZäöüÄÖÜ-]$/.test(e.key)){e.preventDefault();if(typeBuf.length<40){typeBuf+=e.key;$('wordIn').value=typeBuf;pushTyping();}}
 }
 function fillTyping(el,info){
   if(!el)return;
@@ -626,7 +627,7 @@ if(m.t==='turn'){turnPlayer=m.player;syllable=m.syllable;fuseEndsAt=m.fuseEndsAt
  liveTyping.set(m.player,'');clearTypeBuf();renderGame();return;}
 if(m.t==='typing'){liveTyping.set(m.player,m.v||'');updateAllStationWords();return;}
 if(m.t==='accept'){err('gameErr','');if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;if(m.word)lastWords.set(m.player,{word:m.word,syllable});
- if(m.player===me){clearTypeBuf();liveTyping.set(me,'');}updateAllStationWords();return;}
+ if(m.player===me){clearTypeBuf();liveTyping.set(me,'');}explodeRandomDuck();updateAllStationWords();return;}
 if(m.t==='reject'){if(m.player===me)err('gameErr',mapErr(m.reason));return;}
 if(m.t==='boom'){err('gameErr','');fuseSpeed=0;const c=$('center');if(c){c.classList.add('boom');setTimeout(()=>c.classList.remove('boom'),220);}return;}
 if(m.t==='over'){playGameOverCelebration(m);return;}
@@ -710,7 +711,7 @@ $('homeBtn').onclick=()=>{location.href=location.pathname;};
 const wordInEl=$('wordIn');
 wordInEl.addEventListener('input',()=>{
   if(state!=='game'||!myTurn)return;
-  typeBuf=wordInEl.value.slice(0,40);
+  typeBuf=wordInEl.value.replace(/ß/g,'').slice(0,40);
   if(wordInEl.value!==typeBuf)wordInEl.value=typeBuf;
   pushTyping();
 });
