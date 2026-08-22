@@ -132,10 +132,14 @@ tr.you td{background:var(--tint);font-weight:600}
  border:1px solid var(--accent);color:var(--a7);padding:clamp(3px,.4vw,5px) clamp(6px,.8vw,10px)}
 .gameHud{position:relative;z-index:55;padding:clamp(8px,1.5vh,16px) clamp(12px,2vw,24px) clamp(12px,2vh,20px);
  display:flex;flex-direction:column;align-items:center;gap:clamp(6px,1vh,10px)}
-#wordIn{position:fixed;opacity:0;width:0;height:0;pointer-events:none;border:0;padding:0}
+#wordIn{position:fixed;left:0;bottom:0;opacity:0;width:1px;height:1px;border:0;padding:0;font-size:16px;z-index:100}
 .station .pname{font:600 clamp(18px,2vw,28px)/1.1 var(--f-h);text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.station .typing{font:700 clamp(22px,3.2vw,52px)/1.05 var(--f-h);letter-spacing:.04em;color:var(--a9);min-height:1.1em;
+.station .typing-live{font:700 clamp(22px,3.2vw,52px)/1.05 var(--f-h);letter-spacing:.04em;color:var(--a9);min-height:1.1em;
  max-width:min(280px,28vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.station .typing-live:empty{min-height:0}
+.station .typing{font:600 clamp(16px,2.2vw,36px)/1.05 var(--f-h);letter-spacing:.04em;color:var(--a7);min-height:0;
+ max-width:min(280px,28vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.station .typing:empty{display:none}
 .station .typing .caret{color:var(--accent);animation:blink 1s steps(1) infinite}
 .caret{color:var(--accent);animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
@@ -159,6 +163,7 @@ tr.you td{background:var(--tint);font-weight:600}
  .arena{min-height:calc(100vh - 120px)}
  .station{width:clamp(120px,40vw,180px)}
  .station .typing{font-size:clamp(18px,5vw,32px);max-width:90vw}
+ .station .typing-live{font-size:clamp(18px,5vw,32px);max-width:90vw}
  .syl{font-size:clamp(64px,18vw,120px)}
  .secs{font-size:clamp(28px,8vw,48px)}
  .center-arrow{width:clamp(32px,10vw,56px);height:clamp(10px,2.5vw,18px)}
@@ -231,7 +236,7 @@ tr.you td{background:var(--tint);font-weight:600}
 <div class="badges" id="turnBadges"></div>
 </div>
 </div>
-<input id="wordIn" type="text" tabindex="-1" aria-hidden="true" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+<input id="wordIn" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Wort eingeben">
 <div class="gameHud">
 <p class="err" id="gameErr"></p>
 </div>
@@ -381,8 +386,25 @@ function wordInfo(p){
   if(last)return{text:last.word,syllable:last.syllable};
   return{text:'',syllable:''};
 }
+function liveWordInfo(p){
+  if(p.id!==turnPlayer)return null;
+  const text=p.id===me?typeBuf:(liveTyping.get(p.id)||'');
+  return{text,syllable,live:true};
+}
+function clearTypeBuf(){
+  typeBuf='';
+  const inp=$('wordIn');
+  if(inp)inp.value='';
+}
+function focusWordInput(){
+  const inp=$('wordIn');
+  if(inp&&state==='game'&&myTurn){
+    try{inp.focus({preventScroll:true});}catch(_){inp.focus();}
+  }
+}
 function pushTyping(){
   liveTyping.set(me,typeBuf);
+  updateAllStationWords();
   const now=Date.now();
   if(now-lastType<80)return;
   lastType=now;
@@ -390,10 +412,11 @@ function pushTyping(){
 }
 function onGameKey(e){
   if(state!=='game'||!myTurn)return;
+  if(e.target&&e.target!==$('wordIn')&&(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'))return;
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.key==='Enter'){e.preventDefault();if(typeBuf.trim())send({t:'submit',v:typeBuf});return;}
-  if(e.key==='Backspace'){e.preventDefault();typeBuf=typeBuf.slice(0,-1);pushTyping();return;}
-  if(e.key.length===1&&/^[a-zA-ZäöüÄÖÜß-]$/.test(e.key)){e.preventDefault();if(typeBuf.length<40){typeBuf+=e.key;pushTyping();}}
+  if(e.key==='Backspace'){e.preventDefault();typeBuf=typeBuf.slice(0,-1);$('wordIn').value=typeBuf;pushTyping();return;}
+  if(e.key.length===1&&/^[a-zA-ZäöüÄÖÜß-]$/.test(e.key)){e.preventDefault();if(typeBuf.length<40){typeBuf+=e.key;$('wordIn').value=typeBuf;pushTyping();}}
 }
 function fillTyping(el,info){
   if(!el)return;
@@ -401,9 +424,22 @@ function fillTyping(el,info){
   el.classList.add('lastword');
   el.innerHTML=highlightWord(info.text,info.syllable);
 }
+function fillLiveTyping(el,info,p){
+  if(!el)return;
+  if(!info){el.innerHTML='';return;}
+  if(!info.text){
+    if(p.id===me&&myTurn)el.innerHTML='<span class="caret">|</span>';
+    else el.innerHTML='';
+    return;
+  }
+  let html=highlightWord(info.text,info.syllable);
+  if(p.id===me&&myTurn)html+='<span class="caret">|</span>';
+  el.innerHTML=html;
+}
 function updateAllStationWords(){
   players.forEach(p=>{
     fillTyping(document.querySelector('.station[data-p="'+p.id+'"] .typing'),wordInfo(p));
+    fillLiveTyping(document.querySelector('.station[data-p="'+p.id+'"] .typing-live'),liveWordInfo(p),p);
   });
 }
 function effectLabel(e){
@@ -419,10 +455,10 @@ if(m.t==='err'){err(state==='lobby'?'lobbyErr':state==='game'?'gameErr':'homeErr
 if(m.t==='state'){hostId=m.host;players=m.players||[];if(m.fuseEndsAt)fuseEndsAt=m.fuseEndsAt;if(m.fuseMs)fuseMsTotal=m.fuseMs;if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;
  if(m.state==='lobby'){show('lobby');renderLobby();}else if(m.state==='playing'){lastWords.clear();lastTurnForDucks=null;show('game');renderGame(m);}return;}
 if(m.t==='turn'){turnPlayer=m.player;syllable=m.syllable;fuseEndsAt=m.fuseEndsAt;fuseMsTotal=m.fuseMs||fuseMsTotal;fuseSpeed=m.fuseSpeed||0;effects=m.effects||[];myTurn=m.player===me;
- liveTyping.set(m.player,'');typeBuf='';renderGame();return;}
+ liveTyping.set(m.player,'');clearTypeBuf();renderGame();return;}
 if(m.t==='typing'){liveTyping.set(m.player,m.v||'');updateAllStationWords();return;}
 if(m.t==='accept'){err('gameErr','');if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;if(m.word)lastWords.set(m.player,{word:m.word,syllable});
- if(m.player===me){typeBuf='';liveTyping.set(me,'');}updateAllStationWords();return;}
+ if(m.player===me){clearTypeBuf();liveTyping.set(me,'');}updateAllStationWords();return;}
 if(m.t==='reject'){if(m.player===me)err('gameErr',mapErr(m.reason));return;}
 if(m.t==='boom'){err('gameErr','');fuseSpeed=0;const c=$('center');if(c){c.classList.add('boom');setTimeout(()=>c.classList.remove('boom'),220);}return;}
 if(m.t==='over'){show('over');renderOver(m);return;}
@@ -463,6 +499,7 @@ function renderGame(snap){
     const info=wordInfo(p);
     st.innerHTML='<div class="laptop"><div class="hearts">'+heartsHtml(p.l,3)+'</div><div class="duck">'+duckImg(i)+'</div></div>'+
       '<div class="pname">'+esc(p.n)+(isTurn?' · '+t('turn'):'')+'</div>'+
+      '<div class="typing-live"></div>'+
       '<div class="typing"></div>';
     arena.appendChild(st);
     fillTyping(st.querySelector('.typing'),info);
@@ -471,8 +508,9 @@ function renderGame(snap){
   $('sylOnBomb').textContent=syllable||'?';
   const bd=$('turnBadges');bd.innerHTML='';
   if(isTurnEffects())effects.forEach(e=>{const s=document.createElement('span');s.textContent=effectLabel(e);bd.appendChild(s);});
-  if(!myTurn)typeBuf='';
-  if(myTurn)updateAllStationWords();
+  if(!myTurn)clearTypeBuf();
+  updateAllStationWords();
+  if(myTurn)focusWordInput();
   requestAnimationFrame(tickFuse);
 }
 function isTurnEffects(){return myTurn&&effects.length;}
@@ -501,6 +539,18 @@ $('copyBtn').onclick=()=>{navigator.clipboard.writeText(location.origin+'?r='+ro
 $('startBtn').onclick=()=>send({t:'start'});
 $('againBtn').onclick=()=>send({t:'again'});
 $('homeBtn').onclick=()=>{location.href=location.pathname;};
+const wordInEl=$('wordIn');
+wordInEl.addEventListener('input',()=>{
+  if(state!=='game'||!myTurn)return;
+  typeBuf=wordInEl.value.slice(0,40);
+  if(wordInEl.value!==typeBuf)wordInEl.value=typeBuf;
+  pushTyping();
+});
+wordInEl.addEventListener('keydown',e=>{
+  if(state!=='game'||!myTurn)return;
+  if(e.key==='Enter'){e.preventDefault();if(typeBuf.trim())send({t:'submit',v:typeBuf});}
+});
+$('game').addEventListener('click',()=>{if(state==='game'&&myTurn)focusWordInput();});
 document.addEventListener('keydown',onGameKey);
 let resizeT;
 window.addEventListener('resize',()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>{if(state==='game')renderGame();},120);});
