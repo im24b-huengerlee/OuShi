@@ -6,10 +6,31 @@ Silbenbombe is a real-time multiplayer word game in the browser. A bomb passes f
 
 *(Deploy to deplo.io — URL will be added after first deployment)*
 
+## QuackStream Webhook
+
+This repo integrates with [QuackStream](https://github.com/hackts-ch/QuackStream) for live commit display during the hackathon.
+
+**Webhook settings** (GitHub → Settings → Webhooks → Add webhook):
+
+| Field | Value |
+|---|---|
+| Payload URL | `https://YOUR-QUACKSTREAM-BACKEND/webhook` |
+| Content type | `application/json` |
+| SSL verification | Enable |
+| Events | Just the **push** event |
+| Active | ✓ |
+
+Or run (after `gh auth login`):
+
+```powershell
+.\scripts\setup-quackstream-webhook.ps1 -BackendUrl "https://YOUR-QUACKSTREAM-BACKEND"
+```
+
+Test: `git commit --allow-empty -m "quacking code now" && git push` — check **Recent Deliveries** for a green checkmark.
+
 ## Contributors
 
-- Team Member 1 (@github-handle)
-- Team Member 2 (@github-handle)
+- Elias Hünger (@im24b-huengerlee)
 
 ## How to Run Locally
 
