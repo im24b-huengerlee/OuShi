@@ -103,20 +103,23 @@ tr.you td{background:var(--tint);font-weight:600}
 .station.active.you .laptop{border-color:var(--accent)}
 @keyframes laptopGlow{from{box-shadow:0 0 10px 2px var(--a3),0 0 24px 4px rgba(89,128,166,.25)}to{box-shadow:0 0 18px 4px var(--accent),0 0 36px 8px rgba(89,128,166,.4)}}
 .station .hearts{font-size:clamp(18px,2.2vw,28px);line-height:1;letter-spacing:.08em;margin-bottom:clamp(2px,.4vh,6px)}
-.station .duck{width:clamp(72px,9vw,120px);height:clamp(72px,9vw,120px)}
-.station .duck svg{display:block;width:100%;height:100%}
+.station .duck{width:clamp(72px,9vw,120px);height:clamp(72px,9vw,120px);display:flex;align-items:center;justify-content:center}
+.station .duck img{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}
+.station .duck img.flip{transform:scaleX(-1)}
+.station .typing.lastword{color:var(--accent)}
+.station .typing:empty::before{content:"…";color:var(--off);font-weight:400}
+.station .typing.lastword:empty::before{content:""}
+.turn-arrow{position:absolute;left:50%;top:50%;width:clamp(48px,6vw,88px);height:clamp(14px,1.8vw,24px);pointer-events:none;z-index:5;
+ transform-origin:center center;transition:transform .55s cubic-bezier(.34,1.1,.64,1);animation:arrowPulse .7s ease-in-out infinite alternate}
+@keyframes arrowPulse{from{opacity:.75;filter:drop-shadow(0 0 4px var(--a3))}to{opacity:1;filter:drop-shadow(0 0 10px var(--accent))}}
 .station .pname{font:600 clamp(18px,2vw,28px)/1.1 var(--f-h);text-transform:uppercase;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .station .typing{font:700 clamp(22px,3.2vw,52px)/1.05 var(--f-h);letter-spacing:.04em;color:var(--a9);min-height:1.1em;
  max-width:min(280px,28vw);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.station .typing:empty::before{content:"…";color:var(--off);font-weight:400}
 .station .typing .caret{color:var(--accent);animation:blink 1s steps(1) infinite}
 .station .tk{font:400 clamp(10px,.9vw,13px)/1 var(--f-m);letter-spacing:.12em;text-transform:uppercase;color:var(--a7)}
 .station.targetable .laptop{cursor:crosshair}
 .station.targetable:hover .laptop{border-color:var(--accent);background:var(--tint)}
-.turn-arrow{position:absolute;left:50%;top:50%;width:clamp(100px,14vw,220px);height:clamp(28px,3.5vw,52px);pointer-events:none;z-index:6;
- transform-origin:center center;animation:arrowPulse .7s ease-in-out infinite alternate}
-@keyframes arrowPulse{from{opacity:.75;filter:drop-shadow(0 0 4px var(--a3))}to{opacity:1;filter:drop-shadow(0 0 12px var(--accent))}}
-.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;display:flex;flex-direction:column;
+.center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;display:flex;flex-direction:column;
  align-items:center;justify-content:center;gap:clamp(4px,.8vh,12px);text-align:center;pointer-events:none;border:none;background:none}
 .center.alarm .syl,.center.alarm .secs{color:var(--a9)}
 .center.boom .syl{animation:flashSyl .22s steps(1) 1}
@@ -165,7 +168,7 @@ tr.you td{background:var(--tint);font-weight:600}
  .station .typing{font-size:clamp(18px,5vw,32px);max-width:90vw}
  .syl{font-size:clamp(64px,18vw,120px)}
  .secs{font-size:clamp(28px,8vw,48px)}
- .turn-arrow{width:clamp(72px,20vw,120px);height:clamp(20px,5vw,32px)}
+ .turn-arrow{width:clamp(40px,12vw,72px);height:clamp(12px,3vw,20px)}
  .winner{padding:36px 20px}
  .winner .name{font-size:52px}
  .stats{gap:20px;text-align:left}
@@ -298,7 +301,7 @@ noSyllable:'Syllable missing',noWord:'Not a word',used:'Already used',banned:'Le
 let L=localStorage.getItem('lang')||'de';
 const t=k=>STR[L][k]||STR.de[k];
 let ws,me,roomCode,hostId,state='home',clockOffset=0,turnPlayer,syllable='',fuseEndsAt=0,fuseMsTotal=12000,fuseSpeed=0;
-let players=[],myTurn=false,sabotageKind=null,lastType=0,effects=[],liveTyping=new Map(),ROOM_MAX=4;
+let players=[],myTurn=false,sabotageKind=null,lastType=0,effects=[],liveTyping=new Map(),lastWords=new Map(),ROOM_MAX=4;
 const $=id=>document.getElementById(id);
 function show(sc){document.body.className=sc;['home','lobby','game','over'].forEach(s=>$(s).classList.toggle('on',s===sc));state=sc;
  if(sc==='game'){if(myTurn)$('wordIn').focus();updateTurnEdge();}else{$('game').classList.remove('turn-active','my-turn');}}
@@ -355,24 +358,13 @@ function updateTurnEdge(){
   g.classList.add('turn-active');
   g.classList.toggle('my-turn',myTurn);
 }
-function duckSvg(v){
-  const acc=['#5980a6','#416180','#1d2d3d','#b5d9fd','#5980a6','#416180'][v%6];
-  const gear=[
-    '<rect x="11" y="3" width="22" height="7" fill="'+acc+'"/><rect x="14" y="14" width="7" height="5" fill="none" stroke="'+acc+'" stroke-width="1.4"/><rect x="23" y="14" width="7" height="5" fill="none" stroke="'+acc+'" stroke-width="1.4"/><line x1="21" y1="16" x2="23" y2="16" stroke="'+acc+'" stroke-width="1.4"/>',
-    '<rect x="10" y="4" width="24" height="8" fill="'+acc+'"/><rect x="12" y="15" width="8" height="6" fill="none" stroke="'+acc+'" stroke-width="1.4"/><rect x="22" y="15" width="8" height="6" fill="none" stroke="'+acc+'" stroke-width="1.4"/><path d="M8 28h32" stroke="'+acc+'" stroke-width="2"/>',
-    '<rect x="12" y="2" width="20" height="7" fill="'+acc+'" transform="rotate(18 22 5)"/><ellipse cx="24" cy="17" rx="9" ry="5" fill="none" stroke="'+acc+'" stroke-width="1.4"/><circle cx="24" cy="30" r="4" fill="none" stroke="'+acc+'" stroke-width="1.3"/>',
-    '<path d="M9 8h30v6H9z" fill="'+acc+'"/><circle cx="17" cy="17" r="4" fill="none" stroke="'+acc+'" stroke-width="1.4"/><circle cx="31" cy="17" r="4" fill="none" stroke="'+acc+'" stroke-width="1.4"/><path d="M14 33h20" stroke="'+acc+'" stroke-width="2"/>',
-    '<rect x="8" y="5" width="26" height="6" fill="'+acc+'"/><path d="M12 32l24-8" stroke="'+acc+'" stroke-width="2"/><circle cx="18" cy="16" r="3.5" fill="none" stroke="'+acc+'" stroke-width="1.3"/><circle cx="30" cy="16" r="3.5" fill="none" stroke="'+acc+'" stroke-width="1.3"/>',
-    '<ellipse cx="24" cy="6" rx="12" ry="4" fill="'+acc+'"/><rect x="10" y="14" width="10" height="7" fill="none" stroke="'+acc+'" stroke-width="1.4"/><rect x="26" y="14" width="10" height="7" fill="none" stroke="'+acc+'" stroke-width="1.4"/>'
-  ];
-  return '<svg viewBox="0 0 48 48" aria-hidden="true"><ellipse cx="24" cy="30" rx="14" ry="11" fill="#f0c020"/><ellipse cx="24" cy="17" rx="10" ry="9" fill="#f5cc28"/><ellipse cx="24" cy="20" rx="7" ry="5" fill="#f8d84a"/><path d="M30 18l8 3-8 3z" fill="#e8941a"/>'+gear[v%6]+'</svg>';
-}
+function duckImg(v){return'<img src="/assets/duck.png" alt=""'+(v%2?' class="flip"':'')+'>';}
 function ensureTurnArrow(){
   let a=$('turnArrow');
   if(a)return a;
   a=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  a.id='turnArrow';a.classList.add('turn-arrow');a.setAttribute('viewBox','0 0 160 40');
-  a.innerHTML='<defs><marker id="turnAh" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><polygon points="0 0,10 5,0 10" fill="var(--accent)"/></marker></defs><line x1="4" y1="20" x2="152" y2="20" stroke="var(--accent)" stroke-width="7" marker-end="url(#turnAh)"/>';
+  a.id='turnArrow';a.classList.add('turn-arrow');a.setAttribute('viewBox','0 0 120 28');
+  a.innerHTML='<defs><marker id="turnAh" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><polygon points="0 0,8 4,0 8" fill="var(--accent)"/></marker></defs><line x1="4" y1="14" x2="112" y2="14" stroke="var(--accent)" stroke-width="5" marker-end="url(#turnAh)"/>';
   $('arena').appendChild(a);
   return a;
 }
@@ -381,9 +373,44 @@ function positionTurnArrow(){
   if(!turnPlayer||state!=='game'){a.style.display='none';return;}
   const idx=players.findIndex(p=>p.id===turnPlayer);
   if(idx<0||!players[idx].a){a.style.display='none';return;}
-  const ang=playerAngle(idx,players.length);
+  const ang=playerAngle(idx,players.length),rad=ang*Math.PI/180;
+  const cos=Math.cos(rad),sin=Math.sin(rad);
+  const center=$('center');
+  const gap=(center?center.offsetWidth:160)/2+clampPx(28,4,48);
+  let tx=0,ty=0,rot=0;
+  if(Math.abs(cos)>=Math.abs(sin)){
+    if(cos<0){tx=-gap;rot=180;}else{tx=gap;rot=0;}
+  }else{
+    if(sin<0){ty=-gap-16;rot=-90;}else{ty=gap+16;rot=90;}
+  }
   a.style.display='block';
-  a.style.transform='translate(-50%,-50%) rotate('+ang+'deg) translateX('+Math.round(arenaRadius()*0.22)+'px)';
+  a.style.transform='translate(calc(-50% + '+tx+'px), calc(-50% + '+ty+'px)) rotate('+rot+'deg)';
+}
+function clampPx(min,vw,max){return Math.min(max,Math.max(min,window.innerWidth*vw/100));}
+function wordInfo(p){
+  if(p.id===turnPlayer){
+    const text=p.id===me?$('wordIn').value:(liveTyping.get(p.id)||'');
+    return{text,live:true};
+  }
+  const w=lastWords.get(p.id);
+  return{text:w||'',live:false,accepted:!!w};
+}
+function fillTyping(el,info){
+  if(!el)return;
+  if(!info.text){el.textContent='';el.classList.remove('lastword');return;}
+  if(info.live){
+    el.classList.remove('lastword');
+    if(info.text&&turnPlayer===me&&myTurn)el.innerHTML=esc(info.text)+'<span class="caret">|</span>';
+    else el.textContent=info.text;
+  }else{
+    el.classList.add('lastword');
+    el.textContent=info.text;
+  }
+}
+function updateAllStationWords(){
+  players.forEach(p=>{
+    fillTyping(document.querySelector('.station[data-p="'+p.id+'"] .typing'),wordInfo(p));
+  });
 }
 function effectLabel(e){
   if(e==='short')return t('effShort');
@@ -396,11 +423,12 @@ if(m.t==='ping'){send({t:'pong'});return;}
 if(m.t==='joined'){me=m.you;roomCode=m.room;clockOffset=(m.now||Date.now())-Date.now();show('lobby');renderLobby();err('homeErr','');return;}
 if(m.t==='err'){err(state==='lobby'?'lobbyErr':state==='game'?'gameErr':'homeErr',mapErr(m.msg));return;}
 if(m.t==='state'){hostId=m.host;players=m.players||[];if(m.fuseEndsAt)fuseEndsAt=m.fuseEndsAt;if(m.fuseMs)fuseMsTotal=m.fuseMs;if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;
- if(m.state==='lobby'){show('lobby');renderLobby();}else if(m.state==='playing'){show('game');renderGame(m);}return;}
-if(m.t==='turn'){turnPlayer=m.player;syllable=m.syllable;fuseEndsAt=m.fuseEndsAt;fuseMsTotal=m.fuseMs||fuseMsTotal;fuseSpeed=m.fuseSpeed||0;effects=m.effects||[];myTurn=m.player===me;
+ if(m.state==='lobby'){show('lobby');renderLobby();}else if(m.state==='playing'){lastWords.clear();show('game');renderGame(m);}return;}
+if(m.t==='turn'){lastWords.delete(m.player);turnPlayer=m.player;syllable=m.syllable;fuseEndsAt=m.fuseEndsAt;fuseMsTotal=m.fuseMs||fuseMsTotal;fuseSpeed=m.fuseSpeed||0;effects=m.effects||[];myTurn=m.player===me;
  liveTyping.set(m.player,'');$('wordIn').value='';renderGame();return;}
-if(m.t==='typing'){liveTyping.set(m.player,m.v||'');updateTypingDisplay();return;}
-if(m.t==='accept'){err('gameErr','');if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;if(m.player===me){$('wordIn').value='';liveTyping.set(me,'');}updateTypingDisplay();return;}
+if(m.t==='typing'){liveTyping.set(m.player,m.v||'');updateAllStationWords();return;}
+if(m.t==='accept'){err('gameErr','');if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;if(m.word)lastWords.set(m.player,m.word);
+ if(m.player===me){$('wordIn').value='';liveTyping.set(me,'');}updateAllStationWords();return;}
 if(m.t==='reject'){if(m.player===me)err('gameErr',mapErr(m.reason));return;}
 if(m.t==='boom'){err('gameErr','');fuseSpeed=0;const c=$('center');if(c){c.classList.add('boom');setTimeout(()=>c.classList.remove('boom'),220);}return;}
 if(m.t==='sabotage'){sabotageKind=null;$('game').classList.remove('aiming');renderSabotage();return;}
@@ -440,34 +468,28 @@ function renderGame(snap){
     st.style.top=(cy+Math.sin(rad)*r)+'px';
     st.style.transform='translate(-50%,-50%)';
     const tkCls=p.tk>0?'':' zero';
-    const typeText=p.id===turnPlayer?(p.id===me?$('wordIn').value:(liveTyping.get(p.id)||'')):'';
-    st.innerHTML='<div class="laptop"><div class="hearts">'+heartsHtml(p.l,3)+'</div><div class="duck">'+duckSvg(i)+'</div></div>'+
+    const info=wordInfo(p);
+    st.innerHTML='<div class="laptop"><div class="hearts">'+heartsHtml(p.l,3)+'</div><div class="duck">'+duckImg(i)+'</div></div>'+
       '<div class="pname">'+esc(p.n)+(isTurn?' · '+t('turn'):'')+'</div>'+
-      '<div class="typing">'+esc(typeText)+'</div>'+
+      '<div class="typing"></div>'+
       '<div class="tk'+tkCls+'">'+p.tk+' TK</div>';
     st.onclick=()=>onTarget(p);
     arena.appendChild(st);
+    fillTyping(st.querySelector('.typing'),info);
   });
-  positionTurnArrow();
-  updateTurnEdge();
+  requestAnimationFrame(()=>{positionTurnArrow();updateTurnEdge();});
   $('sylOnBomb').textContent=syllable||'?';
   const bd=$('turnBadges');bd.innerHTML='';
   if(isTurnEffects())effects.forEach(e=>{const s=document.createElement('span');s.textContent=effectLabel(e);bd.appendChild(s);});
   $('wordIn').disabled=!myTurn;
-  if(myTurn){$('wordIn').focus();updateTypingDisplay();}else{$('wordIn').value='';}
+  if(myTurn){$('wordIn').focus();updateAllStationWords();}else{$('wordIn').value='';}
   renderSabotage();
   $('game').classList.toggle('aiming',!!sabotageKind);
   $('sabHint').textContent=sabotageKind?t('sabPick'):'';
   requestAnimationFrame(tickFuse);
 }
 function isTurnEffects(){return myTurn&&effects.length;}
-function updateTypingDisplay(){
-  const c=document.querySelector('.station[data-p="'+turnPlayer+'"] .typing');
-  if(!c)return;
-  const text=turnPlayer===me?$('wordIn').value:(liveTyping.get(turnPlayer)||'');
-  if(turnPlayer===me&&myTurn&&text)c.innerHTML=esc(text)+'<span class="caret">|</span>';
-  else c.textContent=text;
-}
+function updateTypingDisplay(){updateAllStationWords();}
 function tickFuse(){
   const center=$('center');
   if(!center||!fuseEndsAt)return;

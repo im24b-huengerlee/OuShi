@@ -54,8 +54,22 @@ function serveIndex(req, res) {
   }
 }
 
+function serveAsset(req, res) {
+  const url = req.url.split('?')[0];
+  if (!url.startsWith('/assets/')) return false;
+  const filePath = path.normalize(path.join(PUBLIC, url.slice(1)));
+  if (!filePath.startsWith(path.join(PUBLIC, 'assets'))) return false;
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return false;
+  const ext = path.extname(filePath).toLowerCase();
+  const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+  res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' });
+  fs.createReadStream(filePath).pipe(res);
+  return true;
+}
+
 const server = http.createServer(async (req, res) => {
   if (await handleApi(req, res)) return;
+  if (serveAsset(req, res)) return;
   if (req.url === '/' || req.url.startsWith('/?')) return serveIndex(req, res);
   res.writeHead(404);
   res.end('Not found');
