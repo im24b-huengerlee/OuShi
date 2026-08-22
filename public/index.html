@@ -155,6 +155,50 @@ tr.you td{background:var(--tint);font-weight:600}
 .overbody{max-width:min(1520px,96vw);margin:0 auto;padding:clamp(36px,4vh,64px) clamp(24px,3vw,56px) clamp(48px,5vh,80px);
  display:grid;grid-template-columns:1.2fr 1fr;gap:clamp(40px,4vw,64px);align-items:start}
 .overbtns{display:flex;flex-direction:column;gap:clamp(10px,1.2vw,16px)}
+#duckparty.screen{display:none;max-width:none;padding:0;width:100%}
+#duckparty.screen.on{display:block;position:fixed;inset:0;z-index:200;overflow:hidden;
+ background:linear-gradient(135deg,#fff9c4 0%,#ffe082 25%,#ffab40 50%,#ff7043 75%,#5980a6 100%);
+ background-size:400% 400%;animation:partyBg 6s ease infinite}
+@keyframes partyBg{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.party-title{position:relative;z-index:4;text-align:center;padding:clamp(24px,6vh,64px) clamp(12px,3vw,24px) 0;
+ font:700 clamp(40px,9vw,100px)/0.9 var(--f-h);color:var(--a9);text-transform:uppercase;
+ text-shadow:0 4px 0 rgba(255,255,255,.45);animation:partyTitlePulse .55s ease-in-out infinite alternate;pointer-events:none}
+@keyframes partyTitlePulse{from{transform:scale(1) rotate(-1deg)}to{transform:scale(1.05) rotate(1deg)}}
+.party-field{position:absolute;inset:0;z-index:1;overflow:hidden}
+.party-flashes{position:fixed;inset:0;pointer-events:none;z-index:3;overflow:hidden}
+.party-duck{position:absolute;width:clamp(32px,4.5vw,76px);height:auto;pointer-events:none;will-change:transform}
+.party-duck.run{animation:partyRun var(--dur,3s) linear infinite}
+.party-duck.dance{animation:partyDance var(--dur,1.1s) ease-in-out infinite}
+.party-duck.spin{animation:partySpin var(--dur,1.8s) linear infinite}
+.party-duck.wobble{animation:partyWobble var(--dur,.85s) ease-in-out infinite alternate}
+.party-duck.bounce{animation:partyBounce var(--dur,1.4s) cubic-bezier(.45,0,.55,1) infinite}
+.party-duck.explode{animation:partyExplode .52s ease-out forwards!important}
+.party-duck.flip-x{transform:scaleX(-1)}
+@keyframes partyRun{
+ 0%{transform:translateX(-18vw) rotate(var(--r,0deg)) scale(var(--sc,1))}
+ 100%{transform:translateX(118vw) rotate(calc(var(--r,0deg) + 25deg)) scale(var(--sc,1))}
+}
+@keyframes partyDance{
+ 0%,100%{transform:translateY(0) rotate(-14deg) scale(var(--sc,1))}
+ 25%{transform:translateY(-22px) rotate(10deg) scale(calc(var(--sc,1)*1.1))}
+ 50%{transform:translateY(6px) rotate(-8deg) scale(calc(var(--sc,1)*.92))}
+ 75%{transform:translateY(-14px) rotate(16deg) scale(calc(var(--sc,1)*1.06))}
+}
+@keyframes partySpin{from{transform:rotate(0deg) scale(var(--sc,1))}to{transform:rotate(360deg) scale(var(--sc,1))}}
+@keyframes partyWobble{from{transform:rotate(-18deg) scale(var(--sc,1))}to{transform:rotate(18deg) scale(calc(var(--sc,1)*1.08))}}
+@keyframes partyBounce{
+ 0%,100%{transform:translateY(0) scale(var(--sc,1))}
+ 50%{transform:translateY(-28px) scale(calc(var(--sc,1)*1.12))}
+}
+@keyframes partyExplode{
+ 0%{transform:scale(var(--sc,1)) rotate(0deg);opacity:1;filter:brightness(1)}
+ 35%{transform:scale(calc(var(--sc,1)*1.45)) rotate(180deg);opacity:1;filter:brightness(2.2) saturate(1.5)}
+ 100%{transform:scale(calc(var(--sc,1)*2.6)) rotate(720deg);opacity:0;filter:brightness(3)}
+}
+.party-flash{position:fixed;border-radius:50%;pointer-events:none;
+ background:radial-gradient(circle,#fffef5 0%,#fff176 22%,#ff6f00 48%,transparent 72%);
+ animation:partyFlash .5s ease-out forwards}
+@keyframes partyFlash{from{transform:scale(.12);opacity:1}to{transform:scale(3.2);opacity:0}}
 @media (max-width:720px){
  h1{font-size:44px}
  .screen{padding:24px 16px 40px}
@@ -260,6 +304,11 @@ tr.you td{background:var(--tint);font-weight:600}
 </div>
 </div>
 </section>
+<section id="duckparty" class="screen">
+<div class="party-title">🦆 DUCK PARTY 🦆</div>
+<div id="duckPartyFlashes" class="party-flashes"></div>
+<div id="duckPartyField" class="party-field"></div>
+</section>
 <audio id="winTrack" preload="auto" src="/assets/animals.mp3"></audio>
 <script>
 const STR={
@@ -298,11 +347,15 @@ const t=k=>STR[L][k]||STR.de[k];
 let ws,me,roomCode,hostId,state='home',clockOffset=0,turnPlayer,syllable='',fuseEndsAt=0,fuseMsTotal=12000,fuseSpeed=0;
 let players=[],myTurn=false,lastType=0,effects=[],liveTyping=new Map(),lastWords=new Map(),typeBuf='',ROOM_MAX=4;
 const TURN_DUCKS=['/assets/duck-a.png','/assets/duck-b.png'];
-let lastTurnForDucks=null;
+const PARTY_DUCKS=['/assets/duck-a.png','/assets/duck-b.png','/assets/duck.png'];
+const PARTY_ANIMS=['run','dance','spin','wobble','bounce'];
+const PARTY_COUNT=58;
+let lastTurnForDucks=null,pendingOverMsg=null,partyDone=false,partyTimers=[],partyFinishTimer=null;
 const $=id=>document.getElementById(id);
-function show(sc){document.body.className=sc;['home','lobby','game','over'].forEach(s=>$(s).classList.toggle('on',s===sc));state=sc;
+function show(sc){document.body.className=sc;['home','lobby','game','duckparty','over'].forEach(s=>$(s).classList.toggle('on',s===sc));state=sc;
  if(sc!=='game'){lastTurnForDucks=null;const b=$('turnDucks');if(b)b.className='turn-ducks';}
- if(sc!=='over')stopWinTrack();}
+ if(sc!=='over'&&sc!=='duckparty')stopWinTrack();
+ if(sc!=='duckparty')stopDuckParty();}
 function wsUrl(){return(location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/ws';}
 function doJoin(room){
   const name=$('nameIn').value.trim();
@@ -355,6 +408,85 @@ function stopWinTrack(){
   if(!a)return;
   a.pause();
   a.currentTime=0;
+  a.onended=null;
+}
+function spawnPartyDuck(field,animOverride){
+  const kinds=animOverride?[animOverride]:PARTY_ANIMS;
+  const kind=kinds[Math.floor(Math.random()*kinds.length)];
+  const el=document.createElement('img');
+  el.className='party-duck '+kind;
+  el.src=PARTY_DUCKS[Math.floor(Math.random()*PARTY_DUCKS.length)];
+  el.alt='';
+  el.style.top=(Math.random()*86+5)+'%';
+  el.style.left=kind==='run'?'0':(Math.random()*94+1)+'%';
+  const sc=(0.45+Math.random()*1.15).toFixed(2);
+  const dur=(0.5+Math.random()*2.6).toFixed(2)+'s';
+  el.style.setProperty('--sc',sc);
+  el.style.setProperty('--r',(Math.random()*50-25)+'deg');
+  el.style.setProperty('--dur',dur);
+  el.style.animationDelay=(Math.random()*2.5).toFixed(2)+'s';
+  field.appendChild(el);
+  return el;
+}
+function fillDuckParty(){
+  const field=$('duckPartyField');
+  if(!field)return;
+  field.innerHTML='';
+  for(let i=0;i<PARTY_COUNT;i++)spawnPartyDuck(field);
+}
+function spawnPartyExplosion(){
+  if(state!=='duckparty')return;
+  const field=$('duckPartyField');
+  const ducks=[...field.querySelectorAll('.party-duck:not(.explode)')];
+  if(!ducks.length)return;
+  const d=ducks[Math.floor(Math.random()*ducks.length)];
+  const r=d.getBoundingClientRect();
+  d.className='party-duck explode';
+  d.style.removeProperty('animation-delay');
+  const flashes=$('duckPartyFlashes');
+  const flash=document.createElement('div');
+  flash.className='party-flash';
+  const sz=Math.max(r.width*2.8,88);
+  flash.style.width=flash.style.height=sz+'px';
+  flash.style.left=(r.left+r.width/2-sz/2)+'px';
+  flash.style.top=(r.top+r.height/2-sz/2)+'px';
+  flashes.appendChild(flash);
+  setTimeout(()=>flash.remove(),540);
+  setTimeout(()=>{d.remove();if(state==='duckparty')spawnPartyDuck(field);},500);
+}
+function stopDuckParty(){
+  partyTimers.forEach(t=>clearInterval(t));
+  partyTimers=[];
+  if(partyFinishTimer){clearTimeout(partyFinishTimer);partyFinishTimer=null;}
+  const f=$('duckPartyField');if(f)f.innerHTML='';
+  const fl=$('duckPartyFlashes');if(fl)fl.innerHTML='';
+}
+function finishDuckParty(){
+  if(partyDone||state!=='duckparty')return;
+  partyDone=true;
+  const m=pendingOverMsg;
+  pendingOverMsg=null;
+  stopDuckParty();
+  stopWinTrack();
+  if(m){show('over');renderOver(m);}
+}
+function startDuckParty(m){
+  pendingOverMsg=m;
+  partyDone=false;
+  clearTypeBuf();
+  show('duckparty');
+  fillDuckParty();
+  playWinTrack();
+  partyTimers.push(setInterval(spawnPartyExplosion,350+Math.random()*450));
+  partyTimers.push(setInterval(()=>{
+    if(state!=='duckparty')return;
+    const field=$('duckPartyField');
+    if(field&&field.querySelectorAll('.party-duck').length<72)spawnPartyDuck(field);
+  },700));
+  const track=$('winTrack');
+  track.onended=()=>finishDuckParty();
+  const wait=track.duration&&!isNaN(track.duration)?track.duration*1000+400:14000;
+  partyFinishTimer=setTimeout(finishDuckParty,wait);
 }
 function turnSide(i,n){
   const rad=playerAngle(i,n)*Math.PI/180,cos=Math.cos(rad),sin=Math.sin(rad);
@@ -475,7 +607,7 @@ if(m.t==='accept'){err('gameErr','');if(m.fuseSpeed!=null)fuseSpeed=m.fuseSpeed;
  if(m.player===me){clearTypeBuf();liveTyping.set(me,'');}updateAllStationWords();return;}
 if(m.t==='reject'){if(m.player===me)err('gameErr',mapErr(m.reason));return;}
 if(m.t==='boom'){err('gameErr','');fuseSpeed=0;const c=$('center');if(c){c.classList.add('boom');setTimeout(()=>c.classList.remove('boom'),220);}return;}
-if(m.t==='over'){show('over');renderOver(m);playWinTrack();return;}
+if(m.t==='over'){startDuckParty(m);return;}
 }
 function renderLobby(){
   const rc=$('roomCode');rc.innerHTML='';
