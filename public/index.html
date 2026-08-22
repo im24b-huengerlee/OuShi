@@ -309,7 +309,6 @@ tr.you td{background:var(--tint);font-weight:600}
 <div id="duckPartyFlashes" class="party-flashes"></div>
 <div id="duckPartyField" class="party-field"></div>
 </section>
-<audio id="winTrack" preload="auto" src="/assets/animals.mp3"></audio>
 <script>
 const STR={
 de:{kicker:'Wort-Bombe mit Sabotage',nameLbl:'Name',namePh:'Dein Name',create:'Raum erstellen',or:'ODER',codePh:'CODE',join:'Beitreten',
@@ -355,7 +354,6 @@ let audioCtx=null,lastFuseTickAt=0;
 const $=id=>document.getElementById(id);
 function show(sc){document.body.className=sc;['home','lobby','game','duckparty','over'].forEach(s=>$(s).classList.toggle('on',s===sc));state=sc;
  if(sc!=='game'){lastTurnForDucks=null;const b=$('turnDucks');if(b)b.className='turn-ducks';stopFuseTick();}
- if(sc!=='over'&&sc!=='duckparty')stopWinTrack();
  if(sc!=='duckparty')stopDuckParty();}
 function wsUrl(){return(location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/ws';}
 function doJoin(room){
@@ -439,19 +437,6 @@ function updateFuseTick(leftMs){
     playAggressiveTick(intensity);
   }
 }
-function playWinTrack(){
-  const a=$('winTrack');
-  if(!a)return;
-  a.currentTime=0;
-  a.play().catch(()=>{});
-}
-function stopWinTrack(){
-  const a=$('winTrack');
-  if(!a)return;
-  a.pause();
-  a.currentTime=0;
-  a.onended=null;
-}
 function spawnPartyDuck(field,animOverride){
   const kinds=animOverride?[animOverride]:PARTY_ANIMS;
   const kind=kinds[Math.floor(Math.random()*kinds.length)];
@@ -509,7 +494,6 @@ function finishDuckParty(){
   const m=pendingOverMsg;
   pendingOverMsg=null;
   stopDuckParty();
-  stopWinTrack();
   if(m){show('over');renderOver(m);}
 }
 function startDuckParty(m){
@@ -518,17 +502,13 @@ function startDuckParty(m){
   clearTypeBuf();
   show('duckparty');
   fillDuckParty();
-  playWinTrack();
   partyTimers.push(setInterval(spawnPartyExplosion,350+Math.random()*450));
   partyTimers.push(setInterval(()=>{
     if(state!=='duckparty')return;
     const field=$('duckPartyField');
     if(field&&field.querySelectorAll('.party-duck').length<72)spawnPartyDuck(field);
   },700));
-  const track=$('winTrack');
-  track.onended=()=>finishDuckParty();
-  const wait=track.duration&&!isNaN(track.duration)?track.duration*1000+400:14000;
-  partyFinishTimer=setTimeout(finishDuckParty,wait);
+  partyFinishTimer=setTimeout(finishDuckParty,8000);
 }
 function turnSide(i,n){
   const rad=playerAngle(i,n)*Math.PI/180,cos=Math.cos(rad),sin=Math.sin(rad);
@@ -727,7 +707,7 @@ $('joinBtn').onclick=()=>doJoin($('codeIn').value.trim().toUpperCase());
 $('copyBtn').onclick=()=>{navigator.clipboard.writeText(location.origin+'?r='+roomCode);err('lobbyErr',t('copied'));};
 $('startBtn').onclick=()=>send({t:'start'});
 $('againBtn').onclick=()=>send({t:'again'});
-$('homeBtn').onclick=()=>{stopWinTrack();location.href=location.pathname;};
+$('homeBtn').onclick=()=>{location.href=location.pathname;};
 const wordInEl=$('wordIn');
 wordInEl.addEventListener('input',()=>{
   if(state!=='game'||!myTurn)return;
