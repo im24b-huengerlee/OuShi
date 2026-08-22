@@ -7,7 +7,8 @@ dictionary.load();
 
 function wsConnect() {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket('ws://127.0.0.1:3000/ws');
+    const port = process.env.PORT || 3000;
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
     ws.on('open', () => resolve(ws));
     ws.on('error', reject);
   });
